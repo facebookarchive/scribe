@@ -1,0 +1,103 @@
+//  Copyright (c) 2007-2008 Facebook
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+// See accompanying file LICENSE or visit the Scribe site at:
+// http://developers.facebook.com/scribe/ 
+
+Scribe tests
+
+Test 0 is a step by step list of how to run scribe and do a simple stress test.
+The rest of the tests assume you're pretty familiar with scribe, and you'll 
+need to edit test/tests.php to point test clients at the right place.
+
+0) - set THRIFT_ROOT in tests.php to the location of the Thrift php library
+     (this is found in lib/php of your Thrift install)
+   - set SCRIBE_ROOT to the location of the genereated thrift interface for scribe
+     (by default this gets created in src/gen-php)
+   - mkdir /tmp/scribetest
+   - bin/scribed test/scribe.conf.test
+     this doesn't daemonize, so open another terminal and run:
+   - php test/many_connections.php
+   - test/resultChecker/resultChecker client1 /tmp/scribetest/scribe_test/scribe_test-*
+
+1) strange inputs
+   - simple_test.php and verify that two messages show
+     up in the log. Look at the log with hexdump -C 
+     and verify that one of the messages contains a zero byte.
+   - strange_input.php and verify that nothing crashes.
+     This tests very long messages and categories and
+     messages and categories with strange characters
+
+2) bad configuration
+   - configure the following and check that status in fb303 is
+     useful and things start to work again when the config is fixed.
+       - unknown type
+       - numeric fields with letters
+       - directory not writable
+       - directory doesn't exist
+       - no stores configured
+
+3) stress test
+   - configure the server for chunk_size=1024
+   - run stress_test.php from a couple of hosts simultaneously
+     using different client names
+   - run resultChecker for every client to verify all the 
+     messages are stored on the central server in order.
+   - hexdump -C <logfile> | more 
+     and verify that a message starts on every 1024 byte
+     boundary.
+
+4) error handling
+   - start a central scribe server(ie bin/scribed test/scribe.conf.test)
+   - start a client scribe server(ie bin/scribed test/scribe.conf.test2)
+   - start the stress test
+   - stop and restart the central server
+   - verify all messages have been stored on the central
+     machine (a few messages could be missing if the server 
+     was killed instead of shut down cleanly)
+
+5) more error handling
+   - start scribe only on the client machine
+   - run the stress test
+   - stop scribe on the client machine
+   - start scribe on the central machine
+   - start scribe again on the client machine
+   - run the stress test again
+   - verify all messages are stored on the central machine
+
+6) test different start order
+   - start client then central
+   - start central then client
+
+7) many connections
+   - run many_connections.php from a few client machines,
+     specifying a different client name for each.
+     (this script has similar output to stress_test.php,
+      but it opens many connections directly to the 
+      central server to simulate many server machines)
+   - use resultChecker to verify that all messages were
+     stored on the central server. 
+
+8) throttling and reconfig under load
+   - set max_msg_per_second on central server very low
+   - run stress test
+   - increase max_msg_per_second on central server
+   - reconfig both servers
+
+9) test thread sharing mode
+   - repeat tests with new_thread_per_category=no
+   - start client but not central, run superstress.php
+   - next, start up central and wait for buffered messages to send
+   - use resultChecker to verify that all messages were
+     stored on the central server.

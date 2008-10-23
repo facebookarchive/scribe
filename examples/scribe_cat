@@ -1,0 +1,60 @@
+#!/usr/bin/python
+
+##  Copyright (c) 2007-2008 Facebook
+##
+##  Licensed under the Apache License, Version 2.0 (the "License");
+##  you may not use this file except in compliance with the License.
+##  You may obtain a copy of the License at
+##
+##      http://www.apache.org/licenses/LICENSE-2.0
+##
+##  Unless required by applicable law or agreed to in writing, software
+##  distributed under the License is distributed on an "AS IS" BASIS,
+##  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+##  See the License for the specific language governing permissions and
+##  limitations under the License.
+##
+## See accompanying file LICENSE or visit the Scribe site at:
+## http://developers.facebook.com/scribe/
+
+
+'''scribe_cat: A simple script for sending messages to scribe.'''
+
+import sys
+from scribe import scribe
+from thrift.transport import TTransport, TSocket
+from thrift.protocol import TBinaryProtocol
+
+if len(sys.argv) == 2:
+  category = sys.argv[1]
+  host = '127.0.0.1'
+  port = 1463
+elif len(sys.argv) == 4 and sys.argv[1] == '-h':
+  category = sys.argv[3]
+  host_port = sys.argv[2].split(':')
+  host = host_port[0]
+  if len(host_port) > 1:
+    port = int(host_port[1])
+  else:
+    port = 1463
+else:
+  sys.exit('usage (message is stdin): scribe_cat [-h host[:port]] category')
+
+log_entry = scribe.LogEntry(dict(category=category, message=sys.stdin.read()))
+
+socket = TSocket.TSocket(host=host, port=port)
+transport = TTransport.TFramedTransport(socket)
+protocol = TBinaryProtocol.TBinaryProtocol(trans=transport, strictRead=False, strictWrite=False)
+client = scribe.Client(iprot=protocol, oprot=protocol)
+
+transport.open()
+result = client.Log(messages=[log_entry])
+transport.close()
+
+if result == scribe.ResultCode.OK:
+  sys.exit()
+elif result == scribe.ResultCode.TRY_LATER:
+  print >> sys.stderr, "TRY_LATER"
+  sys.exit(84)  # 'T'
+else:
+  sys.exit("Unknown error code.")
