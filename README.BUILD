@@ -127,7 +127,7 @@ Examples:
 
 # If Boost is installed in a non-default location or there are multiple Boost versions
 # installed, you will need to specify the Boost path and library names
-./configure --with-boost /usr/local/lib --with-boost-system=boost_system-gcc40-mt-1_36 --with-boost-filesystem=boost_filesystem-gcc40-mt-1_36
+./configure --with-boost=/usr/local --with-boost-system=boost_system-gcc40-mt-1_36 --with-boost-filesystem=boost_filesystem-gcc40-mt-1_36
 
 
 Install
