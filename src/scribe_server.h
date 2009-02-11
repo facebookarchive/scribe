@@ -67,7 +67,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   std::string configFilename;
   facebook::fb303::fb_status status;
   std::string statusDetails;
-  facebook::thrift::concurrency::Mutex statusLock;
+  apache::thrift::concurrency::Mutex statusLock;
   time_t lastMsgTime;
   unsigned long numMsgLastSecond;
   unsigned long maxMsgPerSecond;

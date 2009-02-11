@@ -224,7 +224,7 @@ class ThriftFileStore : public FileStoreBase {
   // Implement FileStoreBase virtual function
   bool openInternal(bool incrementFilename, struct tm* current_time);
 
-  boost::shared_ptr<facebook::thrift::transport::TFileTransport> thriftFileTransport;
+  boost::shared_ptr<apache::thrift::transport::TFileTransport> thriftFileTransport;
 
   unsigned long flushFrequencyMs;
   unsigned long msgBufferSize;
