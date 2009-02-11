@@ -47,7 +47,7 @@ endif
 
 # Set libraries external to this component.
 EXTERNAL_LIBS = -L$(thrift_home)/lib -L$(fb303_home)/lib -lfb303  -lthrift -lthriftnb
-EXTERNAL_LIBS += -levent -lpthread -lrt
+EXTERNAL_LIBS += -levent -lpthread
 
 # Section 2 ############################################################################
 # Set common flags recognized by automake.
