@@ -44,7 +44,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
 
   scribe::thrift::ResultCode Log(const std::vector<scribe::thrift::LogEntry>& messages);
 
-  void getVersion(std::string& _return) {_return = "2.0";}
+  void getVersion(std::string& _return) {_return = "2.01";}
   facebook::fb303::fb_status getStatus();
   void getStatusDetails(std::string& _return);
   void setStatus(facebook::fb303::fb_status new_status);
