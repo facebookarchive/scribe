@@ -20,6 +20,7 @@
 include "fb303/if/fb303.thrift"
 
 namespace cpp scribe.thrift
+namespace perl Scribe.Thrift
 
 enum ResultCode
 {
