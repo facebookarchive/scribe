@@ -35,6 +35,7 @@ using namespace apache::thrift::server;
 using namespace scribe::thrift;
 
 #define DEFAULT_FILESTORE_MAX_SIZE               1000000000
+#define DEFAULT_FILESTORE_MAX_WRITE_SIZE         1000000
 #define DEFAULT_FILESTORE_ROLL_HOUR              1
 #define DEFAULT_FILESTORE_ROLL_MINUTE            15
 #define DEFAULT_BUFFERSTORE_MAX_QUEUE_LENGTH     2000000
@@ -130,6 +131,7 @@ FileStoreBase::FileStoreBase(const string& category, const string &type,
     filePath("/tmp"),
     baseFileName(category),
     maxSize(DEFAULT_FILESTORE_MAX_SIZE),
+    maxWriteSize(DEFAULT_FILESTORE_MAX_WRITE_SIZE),
     rollPeriod(ROLL_NEVER),
     rollHour(DEFAULT_FILESTORE_ROLL_HOUR),
     rollMinute(DEFAULT_FILESTORE_ROLL_MINUTE),
@@ -183,6 +185,7 @@ void FileStoreBase::configure(pStoreConf configuration) {
   }
 
   configuration->getUnsigned("max_size", maxSize);
+  configuration->getUnsigned("max_write_size", maxWriteSize);
   configuration->getString("fs_type", fsType);
   configuration->getUnsigned("rotate_hour", rollHour);
   configuration->getUnsigned("rotate_minute", rollMinute);
@@ -192,6 +195,7 @@ void FileStoreBase::configure(pStoreConf configuration) {
 void FileStoreBase::copyCommon(const FileStoreBase *base) {
   chunkSize = base->chunkSize;
   maxSize = base->maxSize;
+  maxWriteSize = base->maxWriteSize;
   rollPeriod = base->rollPeriod;
   rollHour = base->rollHour;
   rollMinute = base->rollMinute;
@@ -544,93 +548,132 @@ bool FileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   }
 
   // write messages to current file
-  return writeMessages(messages, writeFile);
+  return writeMessages(messages);
 }
 
-// writes messages to the specified file
+// writes messages to either the specified file or the the current writeFile
 bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
-                              boost::shared_ptr<FileInterface> write_file) {
-  // Data is written to a buffer first, then sent to disk in one call to write. 
+                              boost::shared_ptr<FileInterface> file) {
+  // Data is written to a buffer first, then sent to disk in one call to write.
   // This costs an extra copy of the data, but dramatically improves latency with
-  // network based files. (nfs, etc) It also means that the whole block of 
-  // messages either succeeds or fails, which is expected by the buffer store.
-  string write_buffer;
-  unsigned long current_size_buffered = currentSize; // what currentSize would be if we committed the buffer
+  // network based files. (nfs, etc)
+  string        write_buffer;
+  bool          success = true;
+  unsigned long current_size_buffered = 0; // size of data in write_buffer
+  unsigned long num_buffered = 0;
+  unsigned long num_written = 0;
+  boost::shared_ptr<FileInterface> write_file;
+  unsigned long max_write_size = min(maxSize, maxWriteSize);
 
-  for (logentry_vector_t::iterator iter = messages->begin();
-       iter != messages->end(); 
-       ++iter) {
-
-    // have to be careful with the length here. getFrame wants the length without
-    // the frame, then bytesToPad wants the length of the frame and the message.
-    unsigned long length = 0;
-    unsigned long message_length = (*iter)->message.length();
-    string frame, category_frame;
-
-    if (addNewlines) {
-      ++message_length;
-    }
-
-    length += message_length;
-
-    if (writeCategory) {
-      //add space for category+newline and category frame
-      unsigned long category_length = (*iter)->category.length() + 1;
-      length += category_length;
-
-      category_frame = write_file->getFrame(category_length);
-      length += category_frame.length();
-    }
-
-    // frame is a header that the underlying file class can add to each message
-    frame = write_file->getFrame(message_length);
-
-    length += frame.length();
-
-    // padding to align messages on chunk boundaries 
-    unsigned long padding = bytesToPad(length, current_size_buffered, chunkSize);
-
-    length += padding;
-
-    if (padding) {
-      write_buffer += string(padding, 0);
-    }
-
-    if (writeCategory) {
-      write_buffer += category_frame;
-      write_buffer += (*iter)->category + "\n";
-    }
-
-    write_buffer += frame;
-    write_buffer += (*iter)->message;
- 
-    if (addNewlines) {
-      write_buffer += "\n";
-    }
-    
-    current_size_buffered += length;
+  // if no file given, use current writeFile
+  if (file) {
+    write_file = file;
+  } else {
+    write_file = writeFile;
   }
 
-  if (!write_file->write(write_buffer)) {
-    LOG_OPER("[%s] File store failed to write (%lu) messages to file", categoryHandled.c_str(), messages->size());
-    setStatus("File write error");
+  try {
+    for (logentry_vector_t::iterator iter = messages->begin();
+         iter != messages->end();
+         ++iter) {
+
+      // have to be careful with the length here. getFrame wants the length without
+      // the frame, then bytesToPad wants the length of the frame and the message.
+      unsigned long length = 0;
+      unsigned long message_length = (*iter)->message.length();
+      string frame, category_frame;
+
+      if (addNewlines) {
+        ++message_length;
+      }
+
+      length += message_length;
+
+      if (writeCategory) {
+        //add space for category+newline and category frame
+        unsigned long category_length = (*iter)->category.length() + 1;
+        length += category_length;
+
+        category_frame = write_file->getFrame(category_length);
+        length += category_frame.length();
+      }
+
+      // frame is a header that the underlying file class can add to each message
+      frame = write_file->getFrame(message_length);
+
+      length += frame.length();
+
+      // padding to align messages on chunk boundaries
+      unsigned long padding = bytesToPad(length, current_size_buffered, chunkSize);
+
+      length += padding;
+
+      if (padding) {
+        write_buffer += string(padding, 0);
+      }
+
+      if (writeCategory) {
+        write_buffer += category_frame;
+        write_buffer += (*iter)->category + "\n";
+      }
+
+      write_buffer += frame;
+      write_buffer += (*iter)->message;
+
+      if (addNewlines) {
+        write_buffer += "\n";
+      }
+
+      current_size_buffered += length;
+      num_buffered++;
+
+      // Write buffer if processing last message or if larger than allowed
+      if (currentSize + current_size_buffered > max_write_size ||
+          messages->end() == iter + 1 ) {
+
+        if (!write_file->write(write_buffer)) {
+          LOG_OPER("[%s] File store failed to write (%lu) messages to file",
+                   categoryHandled.c_str(), messages->size());
+          setStatus("File write error");
+          success = false;
+          break;
+        }
+
+        num_written += num_buffered;
+        currentSize += current_size_buffered;
+        num_buffered = 0;
+        current_size_buffered = 0;
+        write_buffer = "";
+      }
+
+      // rotate file if large enough and not writing to a separate file
+      if (currentSize > maxSize && !file) {
+        time_t     rawtime;
+        struct tm *timeinfo;
+        time(&rawtime);
+        timeinfo = localtime(&rawtime);
+        rotateFile(timeinfo);
+        write_file = writeFile;
+      }
+    }
+  } catch (std::exception const& e) {
+    LOG_OPER("[%s] File store failed to write. Exception: %s",
+             categoryHandled.c_str(), e.what());
+    success = false;
+  }
+
+  eventsWritten += num_written;
+
+  if (!success) {
     close();
-    return false;
-  }
-  currentSize = current_size_buffered;
-  eventsWritten += messages->size();
 
-  // We can't wait until periodicCheck because we could be getting
-  // a lot of data all at once in a failover situation
-  if (currentSize > maxSize) {
-    time_t rawtime;
-    struct tm *timeinfo;
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-    rotateFile(timeinfo);
+    // update messages to include only the messages that were not handled
+    if (num_written > 0) {
+      messages->erase(messages->begin(), messages->begin() + num_written);
+    }
   }
 
-  return true;
+  return success;
 }
 
 void FileStore::deleteOldest(struct tm* now) {
@@ -772,7 +815,6 @@ bool ThriftFileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messag
   }
 
   unsigned long messages_handled = 0;
-
   for (logentry_vector_t::iterator iter = messages->begin();
        iter != messages->end(); 
        ++iter) {
@@ -797,7 +839,6 @@ bool ThriftFileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messag
       return false;
     }
   }
-
   // We can't wait until periodicCheck because we could be getting
   // a lot of data all at once in a failover situation
   if (currentSize > maxSize) {
@@ -874,17 +915,22 @@ bool ThriftFileStore::openInternal(bool incrementFilename, struct tm* current_ti
     lastRollTime = current_time->tm_hour;
   }
 
+   
   try {
-    thriftFileTransport.reset(new TFileTransport(filename));
+
+    TFileTransport *transport = new TFileTransport(filename);
+    thriftFileTransport.reset(transport);
+
     if (chunkSize != 0) {
-      thriftFileTransport->setChunkSize(chunkSize);
+      transport->setChunkSize(chunkSize);
     }
     if (flushFrequencyMs > 0) {
-      thriftFileTransport->setFlushMaxUs(flushFrequencyMs * 1000);
+      transport->setFlushMaxUs(flushFrequencyMs * 1000);
     }
     if (msgBufferSize > 0) {
-      thriftFileTransport->setEventBufferSize(msgBufferSize);
+      transport->setEventBufferSize(msgBufferSize);
     }
+
     LOG_OPER("[%s] Opened file <%s> for writing", categoryHandled.c_str(), filename.c_str());
 
     struct stat st;
@@ -1107,6 +1153,8 @@ void BufferStore::changeState(buffer_state_t new_state) {
     g_Handler->incrementCounter("retries");
     time(&lastOpenAttempt);
     retryInterval = getNewRetryInterval();
+    LOG_OPER("[%s] choosing new retry interval <%d> seconds", categoryHandled.c_str(), 
+             (int)retryInterval);
     if (!secondaryStore->isOpen()) {
       secondaryStore->open();
     }
@@ -1212,7 +1260,6 @@ void BufferStore::periodicCheck() {
 
 time_t BufferStore::getNewRetryInterval() {
   time_t interval = avgRetryInterval - retryIntervalRange/2 + rand() % retryIntervalRange;
-  LOG_OPER("[%s] choosing new retry interval <%d> seconds", categoryHandled.c_str(), (int)interval);
   return interval;
 }
 
@@ -1301,10 +1348,18 @@ bool NetworkStore::open() {
     if (useConnPool) {
       opened = g_connPool.open(smcService, servers, static_cast<int>(timeout));
     } else {
-      unpooledConn = shared_ptr<scribeConn>(new scribeConn(smcService, servers, static_cast<int>(timeout)));
-      opened = unpooledConn->open();
+      // only open unpooled connection if not already open
+      if (unpooledConn == NULL) {
+        unpooledConn = shared_ptr<scribeConn>(new scribeConn(smcService, servers, static_cast<int>(timeout)));
+        opened = unpooledConn->open();
+      } else {
+        opened = unpooledConn->isOpen();
+        if (!opened) {
+          opened = unpooledConn->open();
+        }
+      }
     }
-    
+
   } else if (remotePort <= 0 ||
              remoteHost.empty()) {
     LOG_OPER("[%s] Bad config - won't attempt to connect to <%s:%lu>", categoryHandled.c_str(), remoteHost.c_str(), remotePort);
@@ -1315,8 +1370,16 @@ bool NetworkStore::open() {
     if (useConnPool) {
       opened = g_connPool.open(remoteHost, remotePort, static_cast<int>(timeout));
     } else {
-      unpooledConn = shared_ptr<scribeConn>(new scribeConn(remoteHost, remotePort, static_cast<int>(timeout)));
-      opened = unpooledConn->open();
+      // only open unpooled connection if not already open
+      if (unpooledConn == NULL) {
+        unpooledConn = shared_ptr<scribeConn>(new scribeConn(remoteHost, remotePort, static_cast<int>(timeout)));
+        opened = unpooledConn->open();
+      } else {
+        opened = unpooledConn->isOpen();
+        if (!opened) {
+          opened = unpooledConn->open();
+        }
+      }
     }
   }
 
@@ -1402,26 +1465,176 @@ BucketStore::~BucketStore() {
 
 }
 
+// Given a single bucket definition, create multiple buckets
+void BucketStore::createBucketsFromBucket(pStoreConf configuration,
+					  pStoreConf bucket_conf) {
+  string error_msg, bucket_subdir, type, path;
+  bool needs_bucket_subdir = false;
+  pStoreConf tmp;
+
+  // check for extra bucket definitions
+  if (configuration->getStore("bucket0", tmp) ||
+      configuration->getStore("bucket1", tmp)) {
+    error_msg = "bucket store has too many buckets defined";
+    goto handle_error;
+  }
+
+  bucket_conf->getString("type", type);
+  if (0 == type.compare("file") || 0 == type.compare("thriftfile")) {
+    needs_bucket_subdir = true;
+    if (!configuration->getString("bucket_subdir", bucket_subdir)) {
+      error_msg =
+        "bucketizer containing file stores must have a bucket_subdir";
+      goto handle_error;
+    }
+    if (!bucket_conf->getString("file_path", path)) {
+      error_msg =
+        "file store contained by bucketizer must have a file_path";
+      goto handle_error;
+    }
+  } else {
+    error_msg = "store contained in a bucket store must have a type of ";
+    error_msg += "either file or thriftfile";
+    goto handle_error;
+  }
+
+  // We actually create numBuckets + 1 stores. Messages are normally
+  // hashed into buckets 1 through numBuckets, and messages that can't
+  // be hashed are put in bucket 0.
+
+  for (unsigned int i = 0; i <= numBuckets; ++i) {
+
+    shared_ptr<Store> newstore =
+      createStore(type, categoryHandled, false, multiCategory);
+
+    if (!newstore) {
+      error_msg = "can't create store of type: ";
+      error_msg += type;
+      goto handle_error;
+    }
+
+    // For file/thrift file buckets, create unique filepath for each bucket
+    if (needs_bucket_subdir) {
+      // the bucket number is appended to the file path
+      ostringstream oss;
+      oss << path << '/' << bucket_subdir << setw(3) << setfill('0') << i;
+      bucket_conf->setString("file_path", oss.str());
+    }
+
+    buckets.push_back(newstore);
+    newstore->configure(bucket_conf);
+  }
+
+  return;
+
+handle_error:
+  setStatus(error_msg);
+  LOG_OPER("[%s] Bad config - %s", categoryHandled.c_str(),
+           error_msg.c_str());
+  numBuckets = 0;
+  buckets.clear();
+}
+
+// Checks for a bucket definition for every bucket from 0 to numBuckets
+// and configures each bucket
+void BucketStore::createBuckets(pStoreConf configuration) {
+  string error_msg, bucket_subdir;
+  pStoreConf tmp;
+  int i;
+
+  if (configuration->getString("bucket_subdir", bucket_subdir)) {
+    error_msg =
+      "cannot have bucket_subdir when defining multiple buckets";
+      goto handle_error;
+    }
+
+  // Configure stores named 'bucket0, bucket1, bucket2, ... bucket{numBuckets}
+  for (i = 0; i <= numBuckets; i++) {
+    pStoreConf   bucket_conf;
+    string       type, bucket_name;
+    stringstream ss;
+
+    ss << "bucket" << i;
+    bucket_name = ss.str();
+
+    if (!configuration->getStore(bucket_name, bucket_conf)) {
+      error_msg = "could not find bucket definition for " +
+	bucket_name;
+      goto handle_error;
+    }
+
+    if (!bucket_conf->getString("type", type)) {
+      error_msg =
+	"store contained in a bucket store must have a type";
+      goto handle_error;
+    }
+
+    shared_ptr<Store> bucket =
+      createStore(type, categoryHandled, false, multiCategory);
+
+    buckets.push_back(bucket);
+    bucket->configure(bucket_conf);
+  }
+
+  // Check if an extra bucket is defined
+  if (configuration->getStore("bucket" + (numBuckets + 1), tmp)) {
+    error_msg = "bucket store has too many buckets defined";
+    goto handle_error;
+  }
+
+  return;
+
+handle_error:
+  setStatus(error_msg);
+  LOG_OPER("[%s] Bad config - %s", categoryHandled.c_str(),
+           error_msg.c_str());
+  numBuckets = 0;
+  buckets.clear();
+}
+
+/**
+   * Buckets in a bucket store can be defined explicitly or implicitly:
+   *
+   * #Explicitly
+   * <store>
+   *   type=bucket
+   *   num_buckets=2
+   *   bucket_type=key_hash
+   *
+   *   <bucket0>
+   *     ...
+   *   </bucket0>
+   *
+   *   <bucket1>
+   *     ...
+   *   </bucket1>
+   *
+   *   <bucket2>
+   *     ...
+   *   </bucket2>
+   * </store>
+   *
+   * #Implicitly
+   * <store>
+   *   type=bucket
+   *   num_buckets=2
+   *   bucket_type=key_hash
+   *
+   *   <bucket>
+   *     ...
+   *   </bucket>
+   * </store>
+   */
 void BucketStore::configure(pStoreConf configuration) {
 
-  string error_msg, type, path, bucket_subdir, bucketizer_str, remove_key_str;
+  string error_msg, bucketizer_str, remove_key_str;
   unsigned long delim_long = 0;
   pStoreConf bucket_conf;
-  bool needs_bucket_subdir = false;
-  bool need_delimiter = false;  //set this to true for bucket types that have a delimiter
-
-  if (!configuration->getUnsigned("num_buckets", numBuckets)) {
-    error_msg = "Bad config - bucket store must have num_buckets";
-    goto handle_error;
-  }
-
-  if (!configuration->getStore("bucket", bucket_conf)) {
-    error_msg = "Bad config - bucket store must contain another store called <bucket>";
-    goto handle_error;
-  }
+  //set this to true for bucket types that have a delimiter
+  bool need_delimiter = false;
 
   configuration->getString("bucket_type", bucketizer_str);
-  
+
   // Figure out th bucket type from the bucketizer string
   if (0 == bucketizer_str.compare("context_log")) {
     bucketType = context_log;
@@ -1432,7 +1645,7 @@ void BucketStore::configure(pStoreConf configuration) {
     bucketType = key_modulo;
     need_delimiter = true;
   }
-  
+
   // This is either a key_hash or key_modulo, not context log, figure out the delimiter and store it
   if (need_delimiter) {
     configuration->getUnsigned("delimiter", delim_long);
@@ -1445,8 +1658,6 @@ void BucketStore::configure(pStoreConf configuration) {
     } else {
       delimiter = (char)delim_long;
     }
-
-    bucket_conf->setUnsigned("delimiter", delimiter);
   }
 
   // Optionally remove the key and delimiter of each message before bucketizing
@@ -1455,54 +1666,24 @@ void BucketStore::configure(pStoreConf configuration) {
     removeKey = true;
 
     if (bucketType == context_log) {
-      error_msg = 
+      error_msg =
         "Bad config - bucketizer store of type context_log do not support remove_key";
       goto handle_error;
     }
   }
 
-  bucket_conf->getString("type", type);
-  if (0 == type.compare("file") || 0 == type.compare("thriftfile")) {
-    needs_bucket_subdir = true;
-    if (!configuration->getString("bucket_subdir", bucket_subdir)) {
-      error_msg = "Bad config - bucketizer containing file stores must have a bucket_subdir";
-      goto handle_error;
-    }
-    if (!bucket_conf->getString("file_path", path)) {
-      error_msg = "Bad config - file store contained by bucketizer must have a file_path";
-      goto handle_error;
-    }
-  } else {
-    error_msg = "Bad config - store contained in a bucket store must have a type of either file or thriftfile";
+  if (!configuration->getUnsigned("num_buckets", numBuckets)) {
+    error_msg = "Bad config - bucket store must have num_buckets";
     goto handle_error;
   }
 
-  // We actually create numBuckets + 1 stores. Messages are normally
-  // hashed into buckets 1 through numBuckets, and messages that can't
-  // be hashed are put in bucket 0.
-
-  for (unsigned int i = 0; i <= numBuckets; ++i) {
-
-    shared_ptr<Store> newstore = 
-      createStore(type, categoryHandled, false, multiCategory);
-
-    if (!newstore) {
-      error_msg = "Bad config - can't create store of type: ";
-      error_msg += type;
-      goto handle_error;
-    }
-
-    // For file/thrift file buckets, create unique filepath for each bucket
-    if (needs_bucket_subdir) {
-      // the bucket number is appended to the file path
-      ostringstream oss(path);
-      oss << path << '/' << bucket_subdir << setw(3) << setfill('0') << i;
-      bucket_conf->setString("file_path", oss.str());
-    }
-
-    buckets.push_back(newstore);
-    newstore->configure(bucket_conf);
+  // Buckets can be defined explicitely or by specifying a single "bucket"
+  if (configuration->getStore("bucket", bucket_conf)) {
+    createBucketsFromBucket(configuration, bucket_conf);
+  } else {
+    createBuckets(configuration);
   }
+
   return;
 
 handle_error:
@@ -1598,26 +1779,59 @@ bool BucketStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) 
   bool success = true;
 
   boost::shared_ptr<logentry_vector_t> failed_messages(new logentry_vector_t);
-  boost::shared_ptr<logentry_vector_t> outvector(new logentry_vector_t);
-  outvector->resize(1);
+  vector<shared_ptr<logentry_vector_t> > bucketed_messages;
+  bucketed_messages.resize(numBuckets + 1);
 
+  if (numBuckets == 0) {
+    LOG_OPER("[%s] Failed to write - no buckets configured",
+             categoryHandled.c_str());
+    setStatus("Failed write to bucket store");
+    return false;
+  }
+
+  // batch messages by bucket
   for (logentry_vector_t::iterator iter = messages->begin();
        iter != messages->end();
        ++iter) {
     unsigned bucket = bucketize((*iter)->message);
 
-    (*outvector)[0] = *iter;
-
-    if (removeKey) {
-      (*outvector)[0]->message = getMessageWithoutKey((*iter)->message);
+    if (!bucketed_messages[bucket]) {
+      bucketed_messages[bucket] =
+        shared_ptr<logentry_vector_t> (new logentry_vector_t);
     }
 
-    if (bucket > numBuckets ||
-        !buckets[bucket]->handleMessages(outvector)) {
-      LOG_OPER("[%s] Failed to write a message to bucket <%u>", categoryHandled.c_str(), bucket);
-      setStatus("Failed write to bucket store");
-      success = false;
-      failed_messages->push_back(*iter);
+    bucketed_messages[bucket]->push_back(*iter);
+  }
+
+  // handle all batches of messages
+  for (int i = 0; i <= numBuckets; i++) {
+    shared_ptr<logentry_vector_t> batch = bucketed_messages[i];
+
+    if (batch) {
+
+      if (removeKey) {
+        // Create new set of messages with keys removed
+        shared_ptr<logentry_vector_t> key_removed =
+          shared_ptr<logentry_vector_t> (new logentry_vector_t);
+
+        for (logentry_vector_t::iterator iter = batch->begin();
+             iter != batch->end();
+             ++iter) {
+          logentry_ptr_t entry = logentry_ptr_t(new LogEntry);
+          entry->category = (*iter)->category;
+          entry->message = getMessageWithoutKey((*iter)->message);
+          key_removed->push_back(entry);
+        }
+        batch = key_removed;
+      }
+
+      if (!buckets[i]->handleMessages(batch)) {
+        // keep track of messages that were not handled
+        failed_messages->insert(failed_messages->end(),
+                                bucketed_messages[i]->begin(),
+                                bucketed_messages[i]->end());
+        success = false;
+      }
     }
   }
 

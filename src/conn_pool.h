@@ -37,6 +37,7 @@ class scribeConn {
   void lock();
   void unlock();
 
+  bool isOpen();
   bool open();
   void close();    
   bool send(boost::shared_ptr<logentry_vector_t> messages);

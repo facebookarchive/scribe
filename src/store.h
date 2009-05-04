@@ -136,6 +136,7 @@ class FileStoreBase : public Store {
   std::string filePath;
   std::string baseFileName;
   unsigned long maxSize;
+  unsigned long maxWriteSize;
   roll_period_t rollPeriod;
   unsigned long rollHour;
   unsigned long rollMinute;
@@ -190,7 +191,8 @@ class FileStore : public FileStoreBase {
   // Implement FileStoreBase virtual function
   bool openInternal(bool incrementFilename, struct tm* current_time);
   bool writeMessages(boost::shared_ptr<logentry_vector_t> messages,
-                     boost::shared_ptr<FileInterface> write_file);
+                     boost::shared_ptr<FileInterface> write_file =
+                     boost::shared_ptr<FileInterface>());
 
   bool isBufferFile;
   bool addNewlines;
@@ -224,7 +226,7 @@ class ThriftFileStore : public FileStoreBase {
   // Implement FileStoreBase virtual function
   bool openInternal(bool incrementFilename, struct tm* current_time);
 
-  boost::shared_ptr<apache::thrift::transport::TFileTransport> thriftFileTransport;
+  boost::shared_ptr<apache::thrift::transport::TTransport> thriftFileTransport;
 
   unsigned long flushFrequencyMs;
   unsigned long msgBufferSize;
@@ -385,6 +387,9 @@ class BucketStore : public Store {
   BucketStore();
   BucketStore(BucketStore& rhs);
   BucketStore& operator=(BucketStore& rhs);
+  void createBucketsFromBucket(pStoreConf configuration,
+                               pStoreConf bucket_conf);
+  void createBuckets(pStoreConf configuration);
 };
 
 /*

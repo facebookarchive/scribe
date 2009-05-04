@@ -190,6 +190,10 @@ void scribeConn::unlock() {
   pthread_mutex_unlock(&mutex);
 }
 
+bool scribeConn::isOpen() {
+  return framedTransport->isOpen();
+}
+
 bool scribeConn::open() {
   try {
 
@@ -264,6 +268,7 @@ bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
   // and send again. This is so in the case where a central server
   // behind a load balancer fails we just reconnect to a different one.
   ResultCode result = TRY_LATER;
+  bool retry = true;
   for (int i = 0; i < 2; ++i) {
     try {
       result = resendClient->Log(msgs);
@@ -276,7 +281,8 @@ bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
       } else {
         LOG_OPER("Failed to send <%d> messages, remote scribe server %s returned error code <%d>",
                  size, connectionString().c_str(), (int) result);
-        return false; // Don't retry here. If this server is overloaded they probably all are.
+        // Don't retry here. If this server is overloaded they probably all are.
+        retry = false;
       }
     } catch (TTransportException& ttx) {
       LOG_OPER("Failed to send <%d> messages to remote scribe server %s error <%s>",
@@ -285,14 +291,15 @@ bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
       LOG_OPER("Unknown exception sending <%d> messages to remote scribe server %s",
                size, connectionString().c_str());
     }
-    
-    // we only get here if the send threw an exception
+
+    // we only get here if sending failed
     close();
-    if (open()) {
-      LOG_OPER("reopened connection to remote scribe server %s",
-               connectionString().c_str());
-    } else {
+    if (!open()) {
       return false;
+    }
+
+    if (!retry) {
+      break;
     }
   }
   return false;
