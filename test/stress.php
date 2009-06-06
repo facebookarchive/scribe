@@ -14,7 +14,7 @@
 //  limitations under the License.
 //
 // See accompanying file LICENSE or visit the Scribe site at:
-// http://developers.facebook.com/scribe/ 
+// http://developers.facebook.com/scribe/
 
 include_once 'tests.php';
 
@@ -25,7 +25,7 @@ if ($argc > 1) {
  }
 
 print 'starting test...';
-stress_test('context', $client, 10000, 200000, 20, 100);
+stress_test('scribe_test', $client, 10000, 200000, 20, 100, 3);
 print 'done';
 
 ?>

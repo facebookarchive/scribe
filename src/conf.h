@@ -13,7 +13,7 @@
 //  limitations under the License.
 //
 // See accompanying file LICENSE or visit the Scribe site at:
-// http://developers.facebook.com/scribe/ 
+// http://developers.facebook.com/scribe/
 //
 // @author Bobby Johnson
 // @author Jason Sobel
@@ -30,7 +30,7 @@
 #include "src/gen-cpp/scribe.h"
 
 /*
- * This class reads and parses a configuration 
+ * This class reads and parses a configuration
  * describing a hierarchy of store objects.
  *
  * It reads a conf file with a proprietary format, although it could
@@ -67,7 +67,9 @@ class StoreConf {
   string_map_t values;
   store_conf_map_t stores;
 
-  static bool parseStore(/*in,out*/ std::queue<std::string>& raw_config, /*out*/ StoreConf* parsed_config);
+  static bool parseStore(/*in,out*/ std::queue<std::string>& raw_config,
+                         /*out*/ StoreConf* parsed_config);
+  static std::string trimString(const std::string& str);
   bool readConfFile(const std::string& filename, std::queue<std::string>& _return);
 };
 

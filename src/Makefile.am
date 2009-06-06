@@ -30,6 +30,7 @@ all:
 # smc_home
 # fb_home
 # fb303_home
+# hadoop_home
 #
 THRIFT = $(thrift_home)/bin/thrift
 
@@ -46,7 +47,7 @@ endif
 
 
 # Set libraries external to this component.
-EXTERNAL_LIBS = -L$(thrift_home)/lib -L$(fb303_home)/lib -lfb303  -lthrift -lthriftnb
+EXTERNAL_LIBS = -L$(thrift_home)/lib -L$(fb303_home)/lib -L$(hadoop_home)/lib -lfb303  -lthrift -lthriftnb
 EXTERNAL_LIBS += -levent -lpthread
 
 # Section 2 ############################################################################
@@ -59,6 +60,7 @@ AM_CPPFLAGS += -I$(thrift_home)/include
 AM_CPPFLAGS += -I$(thrift_home)/include/thrift
 AM_CPPFLAGS += -I$(fb303_home)/include/thrift
 AM_CPPFLAGS += -I$(fb303_home)/include/thrift/fb303
+AM_CPPFLAGS += -I$(hadoop_home)/include
 AM_CPPFLAGS += $(BOOST_CPPFLAGS)
 AM_CPPFLAGS += $(FB_CPPFLAGS) $(DEBUG_CPPFLAGS)
 
@@ -89,7 +91,7 @@ endif
 
 # Binaries -- multiple progs can be defined.
 bin_PROGRAMS = scribed
-scribed_SOURCES = store.cpp store_queue.cpp conf.cpp file.cpp conn_pool.cpp scribe_server.cpp $(FB_SOURCES)
+scribed_SOURCES = store.cpp store_queue.cpp conf.cpp file.cpp HdfsFile.cpp conn_pool.cpp scribe_server.cpp $(FB_SOURCES)
 scribed_LDADD = $(EXTERNAL_LIBS) $(INTERNAL_LIBS)
 
 if SHARED

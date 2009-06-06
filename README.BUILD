@@ -58,6 +58,7 @@ Requirements
 [thrift] Thrift framework
 [fb303] Facebook Bassline (included in thrift/contrib/fb303/)
    fb303 r697294 or later is required.
+[hadoop] optional. version 0.19.1 or higher (http://hadoop.apache.org)
 
 These libraries are open source and may be freely obtained, but they are not
 provided as a part of this distribution.
@@ -122,6 +123,9 @@ Examples:
 # To disable static libraries and enable shared libraries. [ default has been set to static]
 ./configure --disable-static
 
+# To build scribe with Hadoop support
+./configure --enable-hdfs
+
 # To set thrift home to a non-default location
 ./configure --with-thriftpath=/myhome/local/thrift
 
@@ -147,5 +151,5 @@ Acknowledgements
 ================
 The build process for Scribe uses autoconf macros to compile/link with Boost.
 These macros were written by Thomas Porschberg, Michael Tindal, and
-Daniel Casimiro.  See ax_boost_base.m4, ax_boost_filesystem.m4, and
-ax_boost_system.m4 in the aclocal subdirectory for more information.
+Daniel Casimiro.  See the m4 files in the aclocal subdirectory for more
+information.

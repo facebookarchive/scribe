@@ -101,3 +101,8 @@ need to edit test/tests.php to point test clients at the right place.
    - next, start up central and wait for buffered messages to send
    - use resultChecker to verify that all messages were
      stored on the central server.
+
+10) test creating a store with multiple 'categories' specified
+   - Eg: "categories=test1 test2 test3"
+
+11) test bucketstore using buckettest.conf and bucket_test.php

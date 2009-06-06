@@ -13,7 +13,7 @@
 //  limitations under the License.
 //
 // See accompanying file LICENSE or visit the Scribe site at:
-// http://developers.facebook.com/scribe/ 
+// http://developers.facebook.com/scribe/
 //
 // @author Bobby Johnson
 // @author James Wang
@@ -45,11 +45,11 @@ enum roll_period_t {
 class Store {
  public:
   // Creates an object of the appropriate subclass.
-  static boost::shared_ptr<Store> 
-    createStore(const std::string& type, const std::string& category, 
+  static boost::shared_ptr<Store>
+    createStore(const std::string& type, const std::string& category,
                 bool readable = false, bool multi_category = false);
 
-  Store(const std::string& category, const std::string &type, 
+  Store(const std::string& category, const std::string &type,
         bool multi_category = false);
   virtual ~Store();
 
@@ -100,7 +100,7 @@ class Store {
  */
 class FileStoreBase : public Store {
  public:
-  FileStoreBase(const std::string& category, const std::string &type, 
+  FileStoreBase(const std::string& category, const std::string &type,
                 bool multi_category);
   ~FileStoreBase();
 
@@ -119,8 +119,8 @@ class FileStoreBase : public Store {
   virtual void printStats();
 
   // Returns the number of bytes to pad to align to the specified block size
-  unsigned long bytesToPad(unsigned long next_message_length, 
-                           unsigned long current_file_size, 
+  unsigned long bytesToPad(unsigned long next_message_length,
+                           unsigned long current_file_size,
                            unsigned long chunk_size);
 
   // A full filename includes an absolute path and a sequence number suffix.
@@ -128,13 +128,18 @@ class FileStoreBase : public Store {
   std::string makeFullFilename(int suffix, struct tm* creation_time = NULL);
   std::string makeBaseSymlink();
   std::string makeFullSymlink();
-  int findOldestFile(const std::string& base_filename);
-  int findNewestFile(const std::string& base_filename);
-  int getFileSuffix(const std::string& filename, const std::string& base_filename);
+  int  findOldestFile(const std::string& base_filename);
+  int  findNewestFile(const std::string& base_filename);
+  int  getFileSuffix(const std::string& filename,
+                     const std::string& base_filename);
+  void setHostNameSubDir();
 
   // Configuration
+  std::string baseFilePath;
+  std::string subDirectory;
   std::string filePath;
   std::string baseFileName;
+  std::string baseSymlinkName;
   unsigned long maxSize;
   unsigned long maxWriteSize;
   roll_period_t rollPeriod;
@@ -160,14 +165,14 @@ class FileStoreBase : public Store {
   FileStoreBase& operator=(FileStoreBase& rhs);
 };
 
-/* 
+/*
  * This file-based store uses an instance of a FileInterface class that
  * handles the details of interfacing with the filesystem. (see file.h)
  */
 class FileStore : public FileStoreBase {
 
  public:
-  FileStore(const std::string& category, bool multi_category, 
+  FileStore(const std::string& category, bool multi_category,
             bool is_buffer_file = false);
   ~FileStore();
 
@@ -221,6 +226,7 @@ class ThriftFileStore : public FileStoreBase {
   void configure(pStoreConf configuration);
   void close();
   void flush();
+  bool createFileDirectory();
 
  protected:
   // Implement FileStoreBase virtual function
@@ -230,6 +236,7 @@ class ThriftFileStore : public FileStoreBase {
 
   unsigned long flushFrequencyMs;
   unsigned long msgBufferSize;
+  unsigned long useSimpleFile;
 
  private:
   // disallow copy, assignment, and empty construction
@@ -237,7 +244,7 @@ class ThriftFileStore : public FileStoreBase {
   ThriftFileStore& operator=(ThriftFileStore& rhs);
 };
 
-/* 
+/*
  * This store aggregates messages and sends them to another store
  * in larger groups. If it is unable to do this it saves them to
  * a secondary store, then reads them and sends them to the
@@ -248,7 +255,7 @@ class ThriftFileStore : public FileStoreBase {
  * the primary store is down.
  */
 class BufferStore : public Store {
- 
+
  public:
   BufferStore(const std::string& category, bool multi_category);
   ~BufferStore();
@@ -289,6 +296,8 @@ class BufferStore : public Store {
   unsigned long bufferSendRate;   // number of buffer files sent each periodicCheck
   time_t avgRetryInterval;        // in seconds, for retrying primary store open
   time_t retryIntervalRange;      // in seconds
+  bool   replayBuffer;            // whether to send buffers from
+                                  // secondary store to primary
 
   // state
   buffer_state_t state;
@@ -305,11 +314,11 @@ class BufferStore : public Store {
 
 /*
  * This store sends messages to another scribe server.
- * This class is really just an adapter to the global 
+ * This class is really just an adapter to the global
  * connection pool g_connPool.
  */
 class NetworkStore : public Store {
- 
+
  public:
   NetworkStore(const std::string& category, bool multi_category);
   ~NetworkStore();
@@ -332,6 +341,10 @@ class NetworkStore : public Store {
   std::string remoteHost;
   unsigned long remotePort; // long because it works with config code
   std::string smcService;
+  std::string serviceOptions;
+  server_vector_t servers;
+  unsigned long serviceCacheTimeout;
+  time_t lastServiceCheck;
 
   // state
   bool opened;
@@ -345,11 +358,11 @@ class NetworkStore : public Store {
 };
 
 /*
- * This store separates messages into many groups based on a 
+ * This store separates messages into many groups based on a
  * hash function, and sends each group to a different store.
  */
 class BucketStore : public Store {
- 
+
  public:
   BucketStore(const std::string& category, bool multi_category);
   ~BucketStore();
@@ -368,14 +381,17 @@ class BucketStore : public Store {
  protected:
   enum bucketizer_type {
     context_log,
-    key_hash,
-    key_modulo
+    random,      // randomly hash messages without using any key
+    key_hash,    // use hashing to split keys into buckets
+    key_modulo,  // use modulo to split keys into buckets
+    key_range    // use bucketRange to compute modulo to split keys into buckets
   };
 
   bucketizer_type bucketType;
   char delimiter;
   bool removeKey;
   bool opened;
+  unsigned long bucketRange;  // used to compute key_range bucketizing
   unsigned long numBuckets;
   std::vector<boost::shared_ptr<Store> > buckets;
 

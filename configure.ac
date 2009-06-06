@@ -46,16 +46,17 @@ FB_ENABLE_DEFAULT_STATIC
 
 # Example: Macro supplies -DFACEBOOK at compile time and "if FACEBOOK endif" capabilities.
 FB_ENABLE_FEATURE([FACEBOOK], [facebook])
+FB_ENABLE_FEATURE([USE_SCRIBE_HDFS], [hdfs])
 
 # Personalized path generator Sets default paths. Provides --with-xx=DIR options.
 # FB_WITH_PATH([<var>_home], [<var>path], [<default location>]
 
 # Example: sets $(thrift_home) variable with default path set to /usr/local.
 FB_WITH_PATH([thrift_home], [thriftpath], [/usr/local])
-FB_WITH_PATH([jvm_lib], [jvmpath], [/usr/local/java/jre/lib/amd64/server])
 FB_WITH_PATH([fb303_home], [fb303path], [/usr/local])
 FB_WITH_PATH([smc_home], [smcpath], [${EXTERNAL_PATH}/services/trunk/src])
 FB_WITH_PATH([fb_home], [fbpath], [${EXTERNAL_PATH}/libfacebook])
+FB_WITH_PATH([hadoop_home], [hadooppath], [/usr/local])
 
 # Require boost 1.36 with system and filesytem libraries
 AX_BOOST_BASE([1.36])

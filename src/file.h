@@ -29,8 +29,8 @@ class FileInterface {
   FileInterface(const std::string& name, bool framed);
   virtual ~FileInterface();
 
-  static boost::shared_ptr<FileInterface> createFileInterface(const std::string& type, 
-                                                              const std::string& name, 
+  static boost::shared_ptr<FileInterface> createFileInterface(const std::string& type,
+                                                              const std::string& name,
                                                               bool framed = false);
   static std::vector<std::string> list(const std::string& path, const std::string& fsType);
 
@@ -46,6 +46,8 @@ class FileInterface {
   virtual void deleteFile() = 0;
   virtual void listImpl(const std::string& path, std::vector<std::string>& _return) = 0;
   virtual std::string getFrame(unsigned data_size) {return std::string();};
+  virtual bool createDirectory(std::string path) = 0;
+  virtual bool createSymlink(std::string oldpath, std::string newpath) = 0;
 
  protected:
   bool framed;
@@ -72,6 +74,8 @@ class StdFile : public FileInterface {
   void deleteFile();
   void listImpl(const std::string& path, std::vector<std::string>& _return);
   std::string getFrame(unsigned data_size);
+  bool createDirectory(std::string path);
+  bool createSymlink(std::string newpath, std::string oldpath);
 
  private:
   bool open(std::ios_base::openmode mode);

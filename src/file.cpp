@@ -21,6 +21,7 @@
 
 #include "common.h"
 #include "file.h"
+#include "HdfsFile.h"
 
 // INITIAL_BUFFER_SIZE must always be >= UINT_SIZE
 #define INITIAL_BUFFER_SIZE 4096
@@ -34,6 +35,8 @@ boost::shared_ptr<FileInterface> FileInterface::createFileInterface(const std::s
                                                                     bool framed) {
   if (0 == type.compare("std")) {
     return shared_ptr<FileInterface>(new StdFile(name, framed));
+  } else if (0 == type.compare("hdfs")) {
+    return shared_ptr<FileInterface>(new HdfsFile(name));
   } else {
     return shared_ptr<FileInterface>();
   }
@@ -41,14 +44,14 @@ boost::shared_ptr<FileInterface> FileInterface::createFileInterface(const std::s
 
 std::vector<std::string> FileInterface::list(const std::string& path, const std::string &fsType) {
   std::vector<std::string> files;
-  shared_ptr<FileInterface> concrete_file = createFileInterface(fsType, "");
+  shared_ptr<FileInterface> concrete_file = createFileInterface(fsType, path);
   if (concrete_file) {
     concrete_file->listImpl(path, files);
   }
   return files;
 }
 
-FileInterface::FileInterface(const std::string& name, bool frame) 
+FileInterface::FileInterface(const std::string& name, bool frame)
   : framed(frame), filename(name) {
 }
 
@@ -71,19 +74,7 @@ bool StdFile::openRead() {
 }
 
 bool StdFile::openWrite() {
-  /* try to create the directory containing the file */
-  string::size_type slash;
-  if (!filename.empty() &&
-      (filename.find_first_of("/") != string::npos) &&
-      (filename.find_first_of("/") != (slash = filename.find_last_of("/")))) {
-    try {
-      boost::filesystem::create_directory(filename.substr(0, slash));
-    } catch(std::exception const& e) {
-      LOG_OPER("Exception < %s > trying to create directory", e.what());
-      return false;
-    }
-  }
-
+  // open file for write in append mode
   ios_base::openmode mode = fstream::out | fstream::app;
   return open(mode);
 }
@@ -119,7 +110,7 @@ string StdFile::getFrame(unsigned data_length) {
 
   if (framed) {
     char buf[UINT_SIZE];
-    serializeUInt(data_length, buf); 
+    serializeUInt(data_length, buf);
     return string(buf, UINT_SIZE);
 
   } else {
@@ -132,7 +123,7 @@ bool StdFile::write(const std::string& data) {
   if (!file.is_open()) {
     return false;
   }
- 
+
   file << data;
   if (file.bad()) {
     return false;
@@ -177,7 +168,7 @@ bool StdFile::readNext(std::string& _return) {
         return true;
       } else {
         int offset = file.tellg();
-        LOG_OPER("ERROR: Failed to read file %s at offset %d", 
+        LOG_OPER("ERROR: Failed to read file %s at offset %d",
                  filename.c_str(), offset);
         return false;
       }
@@ -203,7 +194,7 @@ unsigned long StdFile::fileSize() {
   return size;
 }
 
-void StdFile::listImpl(const std::string& path, std::vector<std::string>& _return) { 
+void StdFile::listImpl(const std::string& path, std::vector<std::string>& _return) {
   try {
     if (boost::filesystem::exists(path)) {
       boost::filesystem::directory_iterator dir_iter(path), end_iter;
@@ -220,6 +211,25 @@ void StdFile::listImpl(const std::string& path, std::vector<std::string>& _retur
 
 void StdFile::deleteFile() {
   boost::filesystem::remove(filename);
+}
+
+bool StdFile::createDirectory(std::string path) {
+  try {
+    boost::filesystem::create_directory(path);
+  } catch(std::exception const& e) {
+    LOG_OPER("Exception < %s > trying to create directory", e.what());
+    return false;
+  }
+
+  return true;
+}
+
+bool StdFile::createSymlink(std::string oldpath, std::string newpath) {
+  if (symlink(oldpath.c_str(), newpath.c_str()) == 0) {
+    return true;
+  }
+
+  return false;
 }
 
 // Buffer had better be at least UINT_SIZE long!

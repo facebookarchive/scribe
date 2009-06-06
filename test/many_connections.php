@@ -33,7 +33,7 @@ if ($argc > 2) {
 if ($argc > 3) {
   $category = $argv[3];
 } else {
-  $category = "context";
+  $category = "scribe_test";
 }
 
 print 'starting test...';

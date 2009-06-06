@@ -13,7 +13,7 @@
 //  limitations under the License.
 //
 // See accompanying file LICENSE or visit the Scribe site at:
-// http://developers.facebook.com/scribe/ 
+// http://developers.facebook.com/scribe/
 //
 // @author Bobby Johnson
 
@@ -50,7 +50,9 @@ class network_config {
  public:
   // gets a vector of machine/port pairs for a named service
   // returns true on success
-  static bool getService(const std::string& serviceName, server_vector_t& _return) {
+  static bool getService(const std::string& serviceName,
+                         const std::string& options,
+                         server_vector_t& _return) {
     return false;
   }
 };

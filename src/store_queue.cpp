@@ -46,7 +46,8 @@ StoreQueue::StoreQueue(const string& type, const string& category,
     categoryHandled(category),
     checkPeriod(check_period),
     targetWriteSize(DEFAULT_TARGET_WRITE_SIZE),
-    maxWriteInterval(DEFAULT_MAX_WRITE_INTERVAL) {
+    maxWriteInterval(DEFAULT_MAX_WRITE_INTERVAL),
+    mustSucceed(false) {
 
   store = Store::createStore(type, category, false, multiCategory);
   if (!store) {
@@ -65,7 +66,8 @@ StoreQueue::StoreQueue(const shared_ptr<StoreQueue> example,
     categoryHandled(category),
     checkPeriod(example->checkPeriod),
     targetWriteSize(example->targetWriteSize),
-    maxWriteInterval(example->maxWriteInterval) {
+    maxWriteInterval(example->maxWriteInterval),
+    mustSucceed(example->mustSucceed) {
 
   store = example->copyStore(category);
   if (!store) {
@@ -216,7 +218,7 @@ void StoreQueue::threadMember() {
   // initialize absolute timestamp
   struct timespec abs_timeout;
   memset(&abs_timeout, 0, sizeof(struct timespec));
-  
+
   bool stop = false;
   bool open = false;
   while (!stop) {
@@ -259,35 +261,37 @@ void StoreQueue::threadMember() {
     pthread_mutex_lock(&msgMutex);
     pthread_mutex_unlock(&cmdMutex);
 
+    boost::shared_ptr<logentry_vector_t> messages;
+
     // handle messages if stopping, enough time has passed, or queue is large
     //
     if (stop ||
         (this_loop - last_handle_messages > maxWriteInterval) ||
         msgQueueSize >= targetWriteSize) {
 
-      if (msgQueueSize > 0) {
-        boost::shared_ptr<logentry_vector_t> messages = msgQueue;
+      if (failedMessages) {
+        // process any messages we were not able to process last time
+        messages = failedMessages;
+        failedMessages = boost::shared_ptr<logentry_vector_t>();
+      } else if (msgQueueSize > 0) {
+        // process message in queue
+        messages = msgQueue;
         msgQueue = boost::shared_ptr<logentry_vector_t>(new logentry_vector_t);
         msgQueueSize = 0;
-
-        pthread_mutex_unlock(&msgMutex);
-
-        if (!store->handleMessages(messages)) {
-          // Store could not handle these messages, nothing else to do
-          // other than to record them as being lost
-          LOG_OPER("[%s] WARNING: Lost %lu messages!",
-                   categoryHandled.c_str(), messages->size());
-          g_Handler->incrementCounter("lost", messages->size());
-        }
-        store->flush();
-      } else {
-        pthread_mutex_unlock(&msgMutex);
       }
 
       // reset timer
       last_handle_messages = this_loop;
-    } else {
-      pthread_mutex_unlock(&msgMutex);
+    }
+
+    pthread_mutex_unlock(&msgMutex);
+
+    if (messages) {
+      if (!store->handleMessages(messages)) {
+        // Store could not handle these messages
+        processFailedMessages(messages);
+      }
+      store->flush();
     }
 
     if (!stop) {
@@ -312,6 +316,25 @@ void StoreQueue::threadMember() {
   store->close();
 }
 
+void StoreQueue::processFailedMessages(shared_ptr<logentry_vector_t> messages) {
+  // If the store was not able to process these messages, we will either
+  // requeue them or give up depending on the value of mustSucceed
+
+  if (mustSucceed) {
+    // Save failed messages
+    failedMessages = messages;
+
+    LOG_OPER("[%s] WARNING: Re-queueing %lu messages!",
+             categoryHandled.c_str(), messages->size());
+    g_Handler->incrementCounter("requeue", messages->size());
+  } else {
+    // record messages as being lost
+    LOG_OPER("[%s] WARNING: Lost %lu messages!",
+             categoryHandled.c_str(), messages->size());
+    g_Handler->incrementCounter("lost", messages->size());
+  }
+}
+
 void StoreQueue::storeInitCommon() {
   // model store doesn't need this stuff
   if (!isModel) {
@@ -329,6 +352,11 @@ void StoreQueue::configureInline(pStoreConf configuration) {
   // Constructor defaults are fine if these don't exist
   configuration->getUnsigned("target_write_size", (unsigned long&) targetWriteSize);
   configuration->getUnsigned("max_write_interval", (unsigned long&) maxWriteInterval);
+
+  string tmp;
+  if (configuration->getString("must_succeed", tmp) && tmp == "yes") {
+    mustSucceed = true;
+  }
 
   store->configure(configuration);
 }

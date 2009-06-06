@@ -13,7 +13,7 @@
 //  limitations under the License.
 //
 // See accompanying file LICENSE or visit the Scribe site at:
-// http://developers.facebook.com/scribe/ 
+// http://developers.facebook.com/scribe/
 //
 // @author Bobby Johnson
 // @author Jason Sobel
@@ -115,8 +115,17 @@ bool StoreConf::parseStore(queue<string>& raw_config, /*out*/ StoreConf* parsed_
     line = raw_config.front();
     raw_config.pop();
 
+    // remove leading and trailing whitespace
+    line = trimString(line);
+
+    // remove comment
+    size_t comment = line.find_first_of('#');
+    if (comment != string::npos) {
+      line.erase(comment);
+    }
+
     int length = line.size();
-    if (0 >= length || line[0] == '#') {
+    if (0 >= length) {
       continue;
     }
     if (line[0] == '<') {
@@ -156,6 +165,11 @@ bool StoreConf::parseStore(queue<string>& raw_config, /*out*/ StoreConf* parsed_
       } else {
         string arg = line.substr(0, eq);
         string val = line.substr(eq + 1, string::npos);
+
+        // remove leading and trailing whitespace
+        arg = trimString(arg);
+        val = trimString(val);
+
         if (parsed_config->values.find(arg) != parsed_config->values.end()) {
           LOG_OPER("Bad config - duplicate key %s", arg.c_str());
         }
@@ -164,6 +178,19 @@ bool StoreConf::parseStore(queue<string>& raw_config, /*out*/ StoreConf* parsed_
     }
   }
   return true;
+}
+
+// trims leading and trailing whitespace from a string
+string StoreConf::trimString(const string& str) {
+  string whitespace = " \t";
+  size_t start      = str.find_first_not_of(whitespace);
+  size_t end        = str.find_last_not_of(whitespace);
+
+  if (start != string::npos) {
+    return str.substr(start, end - start + 1);
+  } else {
+    return "";
+  }
 }
 
 // reads every line from the file and pushes then onto _return
