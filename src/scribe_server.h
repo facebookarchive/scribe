@@ -71,6 +71,8 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   inline void setServer(
       boost::shared_ptr<apache::thrift::server::TNonblockingServer> & server) {
     this->server = server;
+  unsigned long getMaxConn() {
+    return maxConn;
   }
  private:
   boost::shared_ptr<apache::thrift::server::TNonblockingServer> server;
@@ -93,6 +95,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   time_t lastMsgTime;
   unsigned long numMsgLastSecond;
   unsigned long maxMsgPerSecond;
+  unsigned long maxConn;
   unsigned long long maxQueueSize;
   StoreConf config;
   bool newThreadPerCategory;
