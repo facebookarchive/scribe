@@ -42,6 +42,7 @@ shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_MAX_MSG_PER_SECOND 0
 #define DEFAULT_MAX_QUEUE_SIZE     5000000LL
 #define DEFAULT_SERVER_THREADS     3
+#define DEFAULT_MAX_CONN           0
 
 static string overall_category = "scribe_overall";
 static string log_separator = ":";
@@ -135,6 +136,14 @@ int main(int argc, char **argv) {
     LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
     fflush(stderr);
 
+    // throttle concurrent connections
+    unsigned long mconn = g_Handler->getMaxConn();
+    if (mconn > 0) {
+      LOG_OPER("Throttle max_conn to %lu", mconn);
+      server.setMaxConnections(mconn);
+      server.setOverloadAction(T_OVERLOAD_CLOSE_ON_ACCEPT);
+    }
+
     server.serve();
 
   } catch(std::exception const& e) {
@@ -157,6 +166,7 @@ scribeHandler::scribeHandler(unsigned long int server_port, const std::string& c
     statusDetails("initial state"),
     numMsgLastSecond(0),
     maxMsgPerSecond(DEFAULT_MAX_MSG_PER_SECOND),
+    maxConn(DEFAULT_MAX_CONN),
     maxQueueSize(DEFAULT_MAX_QUEUE_SIZE),
     newThreadPerCategory(true) {
   time(&lastMsgTime);
@@ -582,6 +592,7 @@ void scribeHandler::initialize() {
     config.getUnsigned("max_msg_per_second", maxMsgPerSecond);
     config.getUnsignedLongLong("max_queue_size", maxQueueSize);
     config.getUnsigned("check_interval", checkPeriod);
+    config.getUnsigned("max_conn", maxConn);
 
     // If new_thread_per_category, then we will create a new thread/StoreQueue
     // for every unique message category seen.  Otherwise, we will just create
