@@ -1,4 +1,4 @@
-//  Copyright (c) 2007-2008 Facebook
+///  Copyright (c) 2007-2008 Facebook
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -2067,12 +2067,12 @@ unsigned long BucketStore::bucketize(const std::string& message) {
         case key_range:
           if (bucketRange == 0) {
             return 0;
+          } else {
+            // Calculate what bucket this key would fall into if we used
+            // bucket_range to compute the modulo
+            double key_mod = atol(key.c_str()) % bucketRange;
+            return (unsigned long) ((key_mod / bucketRange) * numBuckets) + 1;
           }
-
-          // Calculate what bucket this key would fall into if we used
-          // bucket_range to compute the modulo
-          double key_mod = atol(key.c_str()) % bucketRange;
-          return (unsigned long) ((key_mod / bucketRange) * numBuckets) + 1;
           break;
         case key_hash:
         default:
