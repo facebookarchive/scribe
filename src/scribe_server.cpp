@@ -570,6 +570,8 @@ void scribeHandler::initialize() {
     config.getString("new_thread_per_category", temp);
     if (0 == temp.compare("no")) {
       newThreadPerCategory = false;
+    } else {
+      newThreadPerCategory = true;
     }
 
     unsigned long int old_port = port;

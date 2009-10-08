@@ -19,10 +19,6 @@ HdfsFile::HdfsFile(const std::string& name) : FileInterface(name, false), inputB
   // First attempt to parse the hdfs cluster from the path name specified.
   // If it fails, then use the default hdfs cluster.
   fileSys = connectToPath(name.c_str());
-  if (!fileSys) {
-    LOG_OPER("[hdfs] Connected to default HDFS");
-    fileSys = hdfsConnectNewInstance("default", 0);
-  }
 
   if (fileSys == 0) {
     // ideally, we should throw an exception here, but the scribe store code
@@ -204,8 +200,9 @@ bool HdfsFile::createSymlink(std::string oldpath, std::string newpath) {
  * specified cluster
  */
 hdfsFS HdfsFile::connectToPath(const char* uri) {
-  char* hostport = (char *)malloc(strlen(uri)+1);
-  char* buf = (char *)malloc(strlen(uri)+1);
+  char* defaultport = "default:0";
+  char* hostport = (char *)malloc(strlen(uri) + strlen(defaultport) + 1);
+  char* buf = (char *)malloc(strlen(uri) + strlen(defaultport) + 1);
   char* portStr;
   char* host;
   int   port = -1;
@@ -219,9 +216,9 @@ hdfsFS HdfsFile::connectToPath(const char* uri) {
   }
   ret = sscanf(uri, "hdfs://%s", hostport);
   if (ret != 1) {
-    free(hostport);
-    free (buf);
-    return 0;
+    // The pathname does not have a specified cluster.
+    // Use default cluster.
+    strcpy(hostport, defaultport);
   }
   host = strtok_r(hostport, ":", &buf);
   portStr = strtok_r(NULL, "/", &buf);

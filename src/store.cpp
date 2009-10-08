@@ -1,4 +1,4 @@
-///  Copyright (c) 2007-2008 Facebook
+//  Copyright (c) 2007-2008 Facebook
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -145,6 +145,7 @@ FileStoreBase::FileStoreBase(const string& category, const string &type,
     writeMeta(false),
     writeCategory(false),
     createSymlink(true),
+    writeStats(true),
     currentSize(0),
     lastRollTime(0),
     eventsWritten(0) {
@@ -207,6 +208,14 @@ void FileStoreBase::configure(pStoreConf configuration) {
     }
   }
 
+  if (configuration->getString("write_stats", tmp)) {
+    if (0 == tmp.compare("yes")) {
+      writeStats = true;
+    } else {
+      writeStats = false;
+    }
+  }
+
   configuration->getString("fs_type", fsType);
 
   configuration->getUnsigned("max_size", maxSize);
@@ -229,6 +238,7 @@ void FileStoreBase::copyCommon(const FileStoreBase *base) {
   writeCategory = base->writeCategory;
   createSymlink = base->createSymlink;
   baseSymlinkName = base->baseSymlinkName;
+  writeStats = base->writeStats;
 
   /*
    * append the category name to the base file path and change the
@@ -281,11 +291,14 @@ void FileStoreBase::rotateFile(struct tm *timeinfo) {
   openInternal(true, timeinfo);
 }
 
-string FileStoreBase::makeFullFilename(int suffix, struct tm* creation_time) {
+string FileStoreBase::makeFullFilename(int suffix, struct tm* creation_time,
+                                       bool use_full_path) {
 
   ostringstream filename;
 
-  filename << filePath << '/';
+  if (use_full_path) {
+    filename << filePath << '/';
+  }
   filename << makeBaseFilename(creation_time);
   filename << '_' << setw(5) << setfill('0') << suffix;
 
@@ -383,6 +396,9 @@ int FileStoreBase::getFileSuffix(const string& filename, const string& base_file
 }
 
 void FileStoreBase::printStats() {
+  if (!writeStats) {
+    return;
+  }
 
   string filename(filePath);
   filename += "/scribe_stats";
@@ -408,7 +424,8 @@ void FileStoreBase::printStats() {
       << setw(2) << setfill('0') << local_time->tm_hour << ':'
       << setw(2) << setfill('0') << local_time->tm_min;
 
-  msg << " wrote <" << currentSize << "> bytes in <" << eventsWritten << "> events to file <" << currentFilename << ">" << endl;
+  msg << " wrote <" << currentSize << "> bytes in <" << eventsWritten
+      << "> events to file <" << currentFilename << ">" << endl;
 
   stats_file->write(msg.str());
   stats_file->close();
@@ -560,7 +577,9 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
 
 
     if (!success) {
-      LOG_OPER("[%s] Failed to open file <%s> for writing", categoryHandled.c_str(), file.c_str());
+      LOG_OPER("[%s] Failed to open file <%s> for writing",
+              categoryHandled.c_str(),
+              file.c_str());
       setStatus("File open error");
     } else {
 
@@ -570,11 +589,13 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
         boost::shared_ptr<FileInterface> tmp =
           FileInterface::createFileInterface(fsType, symlinkName, isBufferFile);
         tmp->deleteFile();
-        writeFile->createSymlink(file, symlinkName);
+        string symtarget = makeFullFilename(suffix, current_time, false);
+        writeFile->createSymlink(symtarget, symlinkName);
       }
       // else it confuses the filename code on reads
 
-      LOG_OPER("[%s] Opened file <%s> for writing", categoryHandled.c_str(), file.c_str());
+      LOG_OPER("[%s] Opened file <%s> for writing", categoryHandled.c_str(),
+              file.c_str());
 
       currentSize = writeFile->fileSize();
       currentFilename = file;
@@ -760,7 +781,8 @@ void FileStore::deleteOldest(struct tm* now) {
   if (index < 0) {
     return;
   }
-  shared_ptr<FileInterface> deletefile = FileInterface::createFileInterface(fsType, makeFullFilename(index, now));
+  shared_ptr<FileInterface> deletefile = FileInterface::createFileInterface(fsType,
+                                            makeFullFilename(index, now));
   deletefile->deleteFile();
 }
 
@@ -779,7 +801,8 @@ bool FileStore::replaceOldest(boost::shared_ptr<logentry_vector_t> messages,
   // Need to close and reopen store in case we already have this file open
   close();
 
-  shared_ptr<FileInterface> infile = FileInterface::createFileInterface(fsType, filename, isBufferFile);
+  shared_ptr<FileInterface> infile = FileInterface::createFileInterface(fsType,
+                                          filename, isBufferFile);
 
   // overwrite the old contents of the file
   bool success;
@@ -842,7 +865,8 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
   }
   infile->close();
 
-  LOG_OPER("[%s] successfully read <%lu> entries from file <%s>", categoryHandled.c_str(), messages->size(), filename.c_str());
+  LOG_OPER("[%s] successfully read <%lu> entries from file <%s>",
+        categoryHandled.c_str(), messages->size(), filename.c_str());
   return true;
 }
 
@@ -1028,7 +1052,8 @@ bool ThriftFileStore::openInternal(bool incrementFilename, struct tm* current_ti
   if (createSymlink) {
     string symlinkName = makeFullSymlink();
     unlink(symlinkName.c_str());
-    symlink(filename.c_str(), symlinkName.c_str());
+    string symtarget = makeFullFilename(suffix, current_time, false);
+    symlink(symtarget.c_str(), symlinkName.c_str());
   }
 
   return true;
@@ -2045,18 +2070,17 @@ unsigned long BucketStore::bucketize(const std::string& message) {
     // just hash everything before the first user-defined delimiter
     string::size_type pos = message.find(delimiter);
     if (pos == string::npos) {
-      LOG_OPER("[%s] didn't find delimiter <%d> for key_hash of <%s>", categoryHandled.c_str(), delimiter, message.c_str());
+      // if no delimiter found, write to bucket 0
       return 0;
     }
 
     string key = message.substr(0, pos).c_str();
     if (key.empty()) {
-      LOG_OPER("[%s] key_hash failed for message <%s>, key is empty string", categoryHandled.c_str(), message.c_str());
+      // if no key found, write to bucket 0
       return 0;
     }
 
     if (numBuckets == 0) {
-      LOG_OPER("[%s] skipping key hash because number of buckets is zero", categoryHandled.c_str());
       return 0;
     } else {
       switch (bucketType) {
@@ -2070,8 +2094,8 @@ unsigned long BucketStore::bucketize(const std::string& message) {
           } else {
             // Calculate what bucket this key would fall into if we used
             // bucket_range to compute the modulo
-            double key_mod = atol(key.c_str()) % bucketRange;
-            return (unsigned long) ((key_mod / bucketRange) * numBuckets) + 1;
+           double key_mod = atol(key.c_str()) % bucketRange;
+           return (unsigned long) ((key_mod / bucketRange) * numBuckets) + 1;
           }
           break;
         case key_hash:
@@ -2090,8 +2114,6 @@ string BucketStore::getMessageWithoutKey(const std::string& message) {
   string::size_type pos = message.find(delimiter);
 
   if (pos == string::npos) {
-    LOG_OPER("[%s] didn't find delimiter <%d> for key_hash of <%s>",
-             categoryHandled.c_str(), delimiter, message.c_str());
     return message;
   }
 
