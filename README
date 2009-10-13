@@ -4,6 +4,13 @@ Introduction
 Scribe is a server for aggregating log data that's streamed in real
 time from clients. It is designed to be scalable and reliable.
 
+See the Scribe Wiki for documentation:
+http://wiki.github.com/facebook/scribe
+
+Keep up to date on Scribe development by joining the Scribe Discussion Group:
+http://groups.google.com/group/scribe-server/
+
+
 License (See LICENSE file for full license)
 ===========================================
 Copyright 2007-2008 Facebook
