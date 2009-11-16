@@ -100,20 +100,24 @@ void StoreQueue::addMessage(boost::shared_ptr<LogEntry> entry) {
   if (isModel) {
     LOG_OPER("ERROR: called addMessage on model store");
   } else {
+    bool waitForWork = false;
+
     pthread_mutex_lock(&msgMutex);
     msgQueue->push_back(entry);
     msgQueueSize += entry->message.size();
+
+    waitForWork = (msgQueueSize >= targetWriteSize) ? true : false;
     pthread_mutex_unlock(&msgMutex);
 
     // Wake up store thread if we have enough messages
-    if (msgQueueSize >= targetWriteSize) {
+    if (waitForWork == true) {
       // signal that there is work to do if not already signaled
+      pthread_mutex_lock(&hasWorkMutex);
       if (!hasWork) {
-        pthread_mutex_lock(&hasWorkMutex);
         hasWork = true;
         pthread_cond_signal(&hasWorkCond);
-        pthread_mutex_unlock(&hasWorkMutex);
       }
+      pthread_mutex_unlock(&hasWorkMutex);
     }
   }
 }
@@ -129,12 +133,12 @@ void StoreQueue::configureAndOpen(pStoreConf configuration) {
     pthread_mutex_unlock(&cmdMutex);
 
     // signal that there is work to do if not already signaled
+    pthread_mutex_lock(&hasWorkMutex);
     if (!hasWork) {
-      pthread_mutex_lock(&hasWorkMutex);
       hasWork = true;
       pthread_cond_signal(&hasWorkCond);
-      pthread_mutex_unlock(&hasWorkMutex);
     }
+    pthread_mutex_unlock(&hasWorkMutex);
   }
 }
 
@@ -149,12 +153,12 @@ void StoreQueue::stop() {
     pthread_mutex_unlock(&cmdMutex);
 
     // signal that there is work to do if not already signaled
+    pthread_mutex_lock(&hasWorkMutex);
     if (!hasWork) {
-      pthread_mutex_lock(&hasWorkMutex);
       hasWork = true;
       pthread_cond_signal(&hasWorkCond);
-      pthread_mutex_unlock(&hasWorkMutex);
     }
+    pthread_mutex_unlock(&hasWorkMutex);
 
     pthread_join(storeThread, NULL);
   }
@@ -170,12 +174,12 @@ void StoreQueue::open() {
     pthread_mutex_unlock(&cmdMutex);
 
     // signal that there is work to do if not already signaled
+    pthread_mutex_lock(&hasWorkMutex);
     if (!hasWork) {
-      pthread_mutex_lock(&hasWorkMutex);
       hasWork = true;
       pthread_cond_signal(&hasWorkCond);
-      pthread_mutex_unlock(&hasWorkMutex);
     }
+    pthread_mutex_unlock(&hasWorkMutex);
   }
 }
 
@@ -305,7 +309,7 @@ void StoreQueue::threadMember() {
       // wait until there's some work to do or we timeout
       pthread_mutex_lock(&hasWorkMutex);
       if (!hasWork) {
-        pthread_cond_timedwait(&hasWorkCond, &hasWorkMutex, &abs_timeout);
+	pthread_cond_timedwait(&hasWorkCond, &hasWorkMutex, &abs_timeout);
       }
       hasWork = false;
       pthread_mutex_unlock(&hasWorkMutex);
