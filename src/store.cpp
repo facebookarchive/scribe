@@ -266,7 +266,7 @@ void FileStoreBase::periodicCheck() {
   timeinfo = localtime(&rawtime);
 
   // Roll the file if we're over max size, or an hour or day has passed
-  bool rotate = currentSize > maxSize;
+  bool rotate = ((currentSize > maxSize) && (maxSize != 0));
   if (!rotate && rollPeriod != ROLL_NEVER) {
     if (rollPeriod == ROLL_DAILY) {
       rotate = timeinfo->tm_mday != lastRollTime &&
@@ -727,9 +727,8 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
       num_buffered++;
 
       // Write buffer if processing last message or if larger than allowed
-      if (currentSize + current_size_buffered > max_write_size ||
+      if ((currentSize + current_size_buffered > max_write_size && maxSize != 0) ||
           messages->end() == iter + 1 ) {
-
         if (!write_file->write(write_buffer)) {
           LOG_OPER("[%s] File store failed to write (%lu) messages to file",
                    categoryHandled.c_str(), messages->size());
@@ -746,7 +745,7 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
       }
 
       // rotate file if large enough and not writing to a separate file
-      if (currentSize > maxSize && !file) {
+      if ((currentSize > maxSize && maxSize != 0 )&& !file) {
         time_t     rawtime;
         struct tm *timeinfo;
         time(&rawtime);
@@ -943,7 +942,7 @@ bool ThriftFileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messag
   }
   // We can't wait until periodicCheck because we could be getting
   // a lot of data all at once in a failover situation
-  if (currentSize > maxSize) {
+  if (currentSize > maxSize && maxSize != 0) {
     time_t rawtime;
     struct tm *timeinfo;
     time(&rawtime);
