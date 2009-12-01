@@ -21,6 +21,7 @@
 // @author Alex Moskalyuk
 // @author Avinash Lakshman
 // @author Anthony Giardullo
+// @author Jan Oravec
 
 #ifndef SCRIBE_STORE_H
 #define SCRIBE_STORE_H
@@ -113,7 +114,8 @@ class FileStoreBase : public Store {
   // We need to pass arguments to open when called internally.
   // The external open function just calls this with default args.
   virtual bool openInternal(bool incrementFilename, struct tm* current_time) = 0;
-  virtual void rotateFile(struct tm *timeinfo);
+  virtual void rotateFile(time_t currentTime = 0);
+
 
   // appends information about the current file to a log file in the same directory
   virtual void printStats();
@@ -124,9 +126,9 @@ class FileStoreBase : public Store {
                            unsigned long chunk_size);
 
   // A full filename includes an absolute path and a sequence number suffix.
-  std::string makeBaseFilename(struct tm* creation_time = NULL);
-  std::string makeFullFilename(int suffix, struct tm* creation_time = NULL,
-                              bool use_full_path = true);
+  std::string makeBaseFilename(struct tm* creation_time);
+  std::string makeFullFilename(int suffix, struct tm* creation_time,
+                               bool use_full_path = true);
   std::string makeBaseSymlink();
   std::string makeFullSymlink();
   int  findOldestFile(const std::string& base_filename);
