@@ -139,6 +139,7 @@ FileStoreBase::FileStoreBase(const string& category, const string &type,
     maxSize(DEFAULT_FILESTORE_MAX_SIZE),
     maxWriteSize(DEFAULT_FILESTORE_MAX_WRITE_SIZE),
     rollPeriod(ROLL_NEVER),
+    rollPeriodLength(0),
     rollHour(DEFAULT_FILESTORE_ROLL_HOUR),
     rollMinute(DEFAULT_FILESTORE_ROLL_MINUTE),
     fsType("std"),
@@ -188,8 +189,43 @@ void FileStoreBase::configure(pStoreConf configuration) {
       rollPeriod = ROLL_DAILY;
     } else if (0 == tmp.compare("never")) {
       rollPeriod = ROLL_NEVER;
+    } else {
+      errno = 0;
+      char* endptr;
+      rollPeriod = ROLL_OTHER;
+      rollPeriodLength = strtol(tmp.c_str(), &endptr, 10);
+
+      bool ok = errno == 0 && rollPeriodLength > 0 && endptr != tmp.c_str() &&
+                (*endptr == '\0' || endptr[1] == '\0');
+      switch (*endptr) {
+        case 'w':
+          rollPeriodLength *= 60 * 60 * 24 * 7;
+          break;
+        case 'd':
+          rollPeriodLength *= 60 * 60 * 24;
+          break;
+        case 'h':
+          rollPeriodLength *= 60 * 60;
+          break;
+        case 'm':
+          rollPeriodLength *= 60;
+          break;
+        case 's':
+        case '\0':
+          break;
+        default:
+          ok = false;
+          break;
+      }
+
+      if (!ok) {
+        rollPeriod = ROLL_NEVER;
+        LOG_OPER("[%s] WARNING: Bad config - invalid format of rotate_period,"
+                 " rotations disabled", categoryHandled.c_str());
+      }
     }
   }
+
   if (configuration->getString("write_meta", tmp)) {
     if (0 == tmp.compare("yes")) {
       writeMeta = true;
@@ -232,6 +268,7 @@ void FileStoreBase::copyCommon(const FileStoreBase *base) {
   maxSize = base->maxSize;
   maxWriteSize = base->maxWriteSize;
   rollPeriod = base->rollPeriod;
+  rollPeriodLength = base->rollPeriodLength;
   rollHour = base->rollHour;
   rollMinute = base->rollMinute;
   fsType = base->fsType;
@@ -267,16 +304,25 @@ void FileStoreBase::periodicCheck() {
 
   // Roll the file if we're over max size, or an hour or day has passed
   bool rotate = ((currentSize > maxSize) && (maxSize != 0));
-  if (!rotate && rollPeriod != ROLL_NEVER) {
-    if (rollPeriod == ROLL_DAILY) {
-      rotate = timeinfo.tm_mday != lastRollTime &&
-               static_cast<uint>(timeinfo.tm_hour) >= rollHour &&
-               static_cast<uint>(timeinfo.tm_min) >= rollMinute;
-    } else {
-      rotate = timeinfo.tm_hour != lastRollTime &&
-               static_cast<uint>(timeinfo.tm_min) >= rollMinute;
+  if (!rotate) {
+    switch (rollPeriod) {
+      case ROLL_DAILY:
+        rotate = timeinfo.tm_mday != lastRollTime &&
+                 static_cast<uint>(timeinfo.tm_hour) >= rollHour &&
+                 static_cast<uint>(timeinfo.tm_min) >= rollMinute;
+        break;
+      case ROLL_HOURLY:
+        rotate = timeinfo.tm_hour != lastRollTime &&
+                 static_cast<uint>(timeinfo.tm_min) >= rollMinute;
+        break;
+      case ROLL_OTHER:
+        rotate = rawtime >= lastRollTime + rollPeriodLength;
+        break;
+      case ROLL_NEVER:
+        break;
     }
   }
+
   if (rotate) {
     rotateFile(rawtime);
   }
@@ -537,10 +583,18 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
 
     string file = makeFullFilename(suffix, current_time);
 
-    if (rollPeriod == ROLL_DAILY) {
-      lastRollTime = current_time->tm_mday;
-    } else {  // default to hourly if rollPeriod is garbage
-      lastRollTime = current_time->tm_hour;
+    switch (rollPeriod) {
+      case ROLL_DAILY:
+        lastRollTime = current_time->tm_mday;
+        break;
+      case ROLL_HOURLY:
+        lastRollTime = current_time->tm_hour;
+        break;
+      case ROLL_OTHER:
+        lastRollTime = time(NULL);
+        break;
+      case ROLL_NEVER:
+        break;
     }
 
     if (writeFile) {
@@ -997,10 +1051,18 @@ bool ThriftFileStore::openInternal(bool incrementFilename, struct tm* current_ti
     return false;
   }
 
-  if (rollPeriod == ROLL_DAILY) {
-    lastRollTime = current_time->tm_mday;
-  } else {  // default to hourly if rollPeriod is garbage
-    lastRollTime = current_time->tm_hour;
+  switch (rollPeriod) {
+    case ROLL_DAILY:
+      lastRollTime = current_time->tm_mday;
+      break;
+    case ROLL_HOURLY:
+      lastRollTime = current_time->tm_hour;
+      break;
+    case ROLL_OTHER:
+      lastRollTime = time(NULL);
+      break;
+    case ROLL_NEVER:
+      break;
   }
 
 

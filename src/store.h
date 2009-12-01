@@ -35,7 +35,8 @@
 enum roll_period_t {
   ROLL_NEVER,
   ROLL_HOURLY,
-  ROLL_DAILY
+  ROLL_DAILY,
+  ROLL_OTHER
 };
 
 
@@ -146,6 +147,7 @@ class FileStoreBase : public Store {
   unsigned long maxSize;
   unsigned long maxWriteSize;
   roll_period_t rollPeriod;
+  time_t rollPeriodLength;
   unsigned long rollHour;
   unsigned long rollMinute;
   std::string fsType;
@@ -157,8 +159,10 @@ class FileStoreBase : public Store {
 
   // State
   unsigned long currentSize;
-  int lastRollTime; // either hour or day, depending on rollPeriod
-  std::string currentFilename; // this isn't used to choose the next file name, we just need it for reporting
+  time_t lastRollTime;         // either hour, day or time since epoch,
+                               // depending on rollPeriod
+  std::string currentFilename; // this isn't used to choose the next file name,
+                               // we just need it for reporting
   unsigned long eventsWritten; // This is how many events this process has
                                // written to the currently open file. It is NOT
                                // necessarily the number of lines in the file
