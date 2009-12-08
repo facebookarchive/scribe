@@ -147,7 +147,7 @@ FileStoreBase::FileStoreBase(const string& category, const string &type,
     writeMeta(false),
     writeCategory(false),
     createSymlink(true),
-    writeStats(true),
+    writeStats(false),
     currentSize(0),
     lastRollTime(0),
     eventsWritten(0) {
