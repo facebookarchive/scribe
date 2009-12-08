@@ -47,7 +47,7 @@ StoreQueue::StoreQueue(const string& type, const string& category,
     checkPeriod(check_period),
     targetWriteSize(DEFAULT_TARGET_WRITE_SIZE),
     maxWriteInterval(DEFAULT_MAX_WRITE_INTERVAL),
-    mustSucceed(false) {
+    mustSucceed(true) {
 
   store = Store::createStore(type, category, false, multiCategory);
   if (!store) {
@@ -354,8 +354,8 @@ void StoreQueue::configureInline(pStoreConf configuration) {
   configuration->getUnsigned("max_write_interval", (unsigned long&) maxWriteInterval);
 
   string tmp;
-  if (configuration->getString("must_succeed", tmp) && tmp == "yes") {
-    mustSucceed = true;
+  if (configuration->getString("must_succeed", tmp) && tmp == "no") {
+    mustSucceed = false;
   }
 
   store->configure(configuration);
