@@ -227,8 +227,7 @@ function many_connections_test($category, $client_name, $num_connections, $rate,
         ++$i;
       }
      $result = $scribes[$conn]->Log($messages);
-
-     if ($result <> OK) {
+     if ($result != ResultCode::OK) {
        print "Warning: Log returned $result \n";
      }
 
@@ -320,7 +319,7 @@ function scribe_Log_test($messages, $scribe_client) {
   try {
     $result = $scribe_client->Log($messages);
 
-    if ($result <> OK) {
+    if ($result != ResultCode::OK) {
       print "Warning: Log returned $result \n";
     }
 

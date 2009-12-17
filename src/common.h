@@ -44,6 +44,7 @@
 #include <unistd.h>
 #include <boost/shared_ptr.hpp>
 #include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/convenience.hpp>
 
 #include "thrift/protocol/TBinaryProtocol.h"
 #include "thrift/server/TNonblockingServer.h"
@@ -66,7 +67,7 @@ typedef std::vector<std::pair<std::string, int> > server_vector_t;
 
 // For security reasons we can't release everything that's compiled
 // in at facebook. Other users might find this useful as well for
-// integrating to their environment. 
+// integrating to their environment.
 // Things in this file include network based configuration and debug messages
 #ifdef FACEBOOK
 #include "env_facebook.h"
