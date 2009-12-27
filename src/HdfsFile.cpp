@@ -9,8 +9,6 @@
 #include "file.h"
 #include "HdfsFile.h"
 
-#ifdef USE_SCRIBE_HDFS
-
 using namespace std;
 
 HdfsFile::HdfsFile(const std::string& name) : FileInterface(name, false), inputBuffer_(NULL), bufferSize_(0) {
@@ -200,7 +198,7 @@ bool HdfsFile::createSymlink(std::string oldpath, std::string newpath) {
  * specified cluster
  */
 hdfsFS HdfsFile::connectToPath(const char* uri) {
-  char* defaultport = "default:0";
+  const char defaultport[] = "default:0";
   char* hostport = (char *)malloc(strlen(uri) + strlen(defaultport) + 1);
   char* buf = (char *)malloc(strlen(uri) + strlen(defaultport) + 1);
   char* portStr;
@@ -238,6 +236,3 @@ hdfsFS HdfsFile::connectToPath(const char* uri) {
   free(buf);
   return fs;
 }
-
-#endif // USE_SCRIBE_HDFS
-

@@ -9,7 +9,8 @@
 
 AC_PREREQ(2.52)
 AC_INIT([scribe], [1.5.0])
-#AC_CONFIG_AUX_DIR([/usr/share/automake-1.9])
+AC_CONFIG_MACRO_DIR([aclocal])
+AM_INIT_AUTOMAKE([foreign -Wall])
 # To install locally
 FB_INITIALIZE([localinstall])
 AC_PREFIX_DEFAULT([/usr/local])

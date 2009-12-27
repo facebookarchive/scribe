@@ -1,7 +1,5 @@
 #!/bin/sh
 
 # To be safe include -I flag
-aclocal -I ./aclocal
-automake -a
-autoconf
+autoreconf --force --verbose --install
 ./configure --config-cache $*
