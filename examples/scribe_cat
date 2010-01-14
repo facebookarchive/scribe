@@ -40,7 +40,7 @@ elif len(sys.argv) == 4 and sys.argv[1] == '-h':
 else:
   sys.exit('usage (message is stdin): scribe_cat [-h host[:port]] category')
 
-log_entry = scribe.LogEntry(dict(category=category, message=sys.stdin.read()))
+log_entry = scribe.LogEntry(category=category, message=sys.stdin.read())
 
 socket = TSocket.TSocket(host=host, port=port)
 transport = TTransport.TFramedTransport(socket)
