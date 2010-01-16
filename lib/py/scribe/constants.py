@@ -4,6 +4,6 @@
 # DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
 #
 
-from thrift.protocol.TProtocol import *
+from thrift.Thrift import *
 from ttypes import *
 

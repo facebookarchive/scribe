@@ -4,26 +4,53 @@
 # DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
 #
 
-from thrift.protocol.TProtocol import *
+from thrift.Thrift import *
 import fb303.ttypes
+
+
+from thrift.transport import TTransport
+from thrift.protocol import TBinaryProtocol
+try:
+  from thrift.protocol import fastbinary
+except:
+  fastbinary = None
 
 
 class ResultCode:
   OK = 0
   TRY_LATER = 1
 
-class LogEntry:
+  _VALUES_TO_NAMES = {
+    0: "OK",
+    1: "TRY_LATER",
+  }
 
-  def __init__(self, d=None):
-    self.category = None
-    self.message = None
-    if isinstance(d, dict):
-      if 'category' in d:
-        self.category = d['category']
-      if 'message' in d:
-        self.message = d['message']
+  _NAMES_TO_VALUES = {
+    "OK": 0,
+    "TRY_LATER": 1,
+  }
+
+class LogEntry:
+  """
+  Attributes:
+   - category
+   - message
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.STRING, 'category', None, None, ), # 1
+    (2, TType.STRING, 'message', None, None, ), # 2
+  )
+
+  def __init__(self, category=None, message=None,):
+    self.category = category
+    self.message = message
 
   def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
     iprot.readStructBegin()
     while True:
       (fname, ftype, fid) = iprot.readFieldBegin()
@@ -45,6 +72,9 @@ class LogEntry:
     iprot.readStructEnd()
 
   def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
     oprot.writeStructBegin('LogEntry')
     if self.category != None:
       oprot.writeFieldBegin('category', TType.STRING, 1)
@@ -57,9 +87,14 @@ class LogEntry:
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
-  def __str__(self): 
-    return str(self.__dict__)
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
 
-  def __repr__(self): 
-    return repr(self.__dict__)
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
 
