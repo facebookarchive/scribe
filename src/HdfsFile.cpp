@@ -5,6 +5,7 @@
 // http://developers.facebook.com/scribe/
 //
 
+#include <limits>
 #include "common.h"
 #include "file.h"
 #include "HdfsFile.h"
@@ -198,41 +199,41 @@ bool HdfsFile::createSymlink(std::string oldpath, std::string newpath) {
  * specified cluster
  */
 hdfsFS HdfsFile::connectToPath(const char* uri) {
-  const char defaultport[] = "default:0";
-  char* hostport = (char *)malloc(strlen(uri) + strlen(defaultport) + 1);
-  char* buf = (char *)malloc(strlen(uri) + strlen(defaultport) + 1);
-  char* portStr;
-  char* host;
-  int   port = -1;
-  hdfsFS fs = NULL;
-  int ret = 0;
-
-  if (uri == NULL || strlen(uri) == 0) {
-    free (buf);
-    free(hostport);
-    return 0;
+  const char proto[] = "hdfs://";
+ 
+  if (strncmp(proto, uri, strlen(proto)) != 0) {
+    // uri doesn't start with hdfs:// -> use default:0, which is special
+    // to libhdfs.
+    return hdfsConnectNewInstance("default", 0);
   }
-  ret = sscanf(uri, "hdfs://%s", hostport);
-  if (ret != 1) {
-    // The pathname does not have a specified cluster.
-    // Use default cluster.
-    strcpy(hostport, defaultport);
+ 
+  // Skip the hdfs:// part.
+  uri += strlen(proto);
+  // Find the next colon.
+  const char* colon = strchr(uri, ':');
+  // No ':' or ':' is the last character.
+  if (!colon || !colon[1]) {
+    LOG_OPER("[hdfs] Missing port specification: \"%s\"", uri);
+    return NULL;
   }
-  host = strtok_r(hostport, ":", &buf);
-  portStr = strtok_r(NULL, "/", &buf);
-  if (host == NULL || portStr == NULL) {
-    free(hostport);
-    free (buf);
-    return 0;
+ 
+  char* endptr = NULL;
+  const long port = strtol(colon + 1, &endptr, 10);
+  if (port < 0) {
+    LOG_OPER("[hdfs] Invalid port specification (negative): \"%s\"", uri);
+    return NULL;
+  } else if (port > std::numeric_limits<tPort>::max()) {
+    LOG_OPER("[hdfs] Invalid port specification (out of range): \"%s\"", uri);
+    return NULL;
   }
-  ret = sscanf(portStr, "%d", &port);
-  if (ret != 1) {
-    free(hostport);
-    free (buf);
-    return 0;
-  }
-  fs = hdfsConnectNewInstance(host, port);
-  free(hostport);
-  free(buf);
+ 
+  char* const host = (char*) malloc(colon - uri + 1);
+  memcpy((char*) host, uri, colon - uri);
+  host[colon - uri] = '\0';
+ 
+  LOG_OPER("[hdfs] Before hdfsConnectNewInstance(%s, %li)", host, port);
+  hdfsFS fs = hdfsConnectNewInstance(host, port);
+  LOG_OPER("[hdfs] After hdfsConnectNewInstance");
+  free(host);
   return fs;
 }
