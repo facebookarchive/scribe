@@ -36,16 +36,24 @@ using namespace apache::thrift::transport;
 using namespace apache::thrift::server;
 using namespace scribe::thrift;
 
-#define DEFAULT_FILESTORE_MAX_SIZE               1000000000
-#define DEFAULT_FILESTORE_MAX_WRITE_SIZE         1000000
-#define DEFAULT_FILESTORE_ROLL_HOUR              1
-#define DEFAULT_FILESTORE_ROLL_MINUTE            15
-#define DEFAULT_BUFFERSTORE_MAX_QUEUE_LENGTH     2000000
-#define DEFAULT_BUFFERSTORE_SEND_RATE            1
-#define DEFAULT_BUFFERSTORE_AVG_RETRY_INTERVAL   300
-#define DEFAULT_BUFFERSTORE_RETRY_INTERVAL_RANGE 60
-#define DEFAULT_BUCKETSTORE_DELIMITER            ':'
-#define DEFAULT_NETWORKSTORE_CACHE_TIMEOUT       300
+#define DEFAULT_FILESTORE_MAX_SIZE                1000000000
+#define DEFAULT_FILESTORE_MAX_WRITE_SIZE          1000000
+#define DEFAULT_FILESTORE_ROLL_HOUR               1
+#define DEFAULT_FILESTORE_ROLL_MINUTE             15
+#define DEFAULT_BUFFERSTORE_MAX_QUEUE_LENGTH      2000000
+#define DEFAULT_BUFFERSTORE_SEND_RATE             1
+#define DEFAULT_BUFFERSTORE_AVG_RETRY_INTERVAL    300
+#define DEFAULT_BUFFERSTORE_RETRY_INTERVAL_RANGE  60
+#define DEFAULT_BUCKETSTORE_DELIMITER             ':'
+#define DEFAULT_NETWORKSTORE_CACHE_TIMEOUT        300
+
+// Parameters for adaptive_backoff
+#define DEFAULT_MIN_RETRY                         5
+#define DEFAULT_MAX_RETRY                         300
+#define DEFAULT_RANDOM_OFFSET_RANGE               60
+#define MULT_INC_FACTOR                           2
+#define ADD_DEC_FACTOR                            2
+#define CONT_SUCCESS_THRESHOLD                    1
 
 ConnPool g_connPool;
 
@@ -176,7 +184,8 @@ void FileStoreBase::configure(pStoreConf configuration) {
 
 
   if (!configuration->getString("base_filename", baseFileName)) {
-    LOG_OPER("[%s] WARNING: Bad config - no base_filename specified for file store", categoryHandled.c_str());
+    LOG_OPER("[%s] WARNING: Bad config - no base_filename specified for file store",
+             categoryHandled.c_str());
   }
 
   // check if symlink name is optionally specified
@@ -296,6 +305,7 @@ bool FileStoreBase::open() {
   return openInternal(false, NULL);
 }
 
+// Decides whether conditions are sufficient for us to roll files
 void FileStoreBase::periodicCheck() {
 
   time_t rawtime = time(NULL);
@@ -823,6 +833,8 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
   return success;
 }
 
+// Deletes the oldest file
+// currently gets invoked from within a bufferstore
 void FileStore::deleteOldest(struct tm* now) {
 
   int index = findOldestFile(makeBaseFilename(now));
@@ -1130,10 +1142,15 @@ BufferStore::BufferStore(const string& category, bool multi_category)
     avgRetryInterval(DEFAULT_BUFFERSTORE_AVG_RETRY_INTERVAL),
     retryIntervalRange(DEFAULT_BUFFERSTORE_RETRY_INTERVAL_RANGE),
     replayBuffer(true),
+    adaptiveBackoff(false),
+    minRetryInterval(DEFAULT_MIN_RETRY),
+    maxRetryInterval(DEFAULT_MAX_RETRY),
+    maxRandomOffset(DEFAULT_RANDOM_OFFSET_RANGE),
+    retryInterval(DEFAULT_MIN_RETRY),
+    numContSuccess(0),
     state(DISCONNECTED) {
 
   lastWriteTime = lastOpenAttempt = time(NULL);
-  retryInterval = getNewRetryInterval();
 
   // we can't open the client conection until we get configured
 }
@@ -1147,18 +1164,50 @@ void BufferStore::configure(pStoreConf configuration) {
   // Constructor defaults are fine if these don't exist
   configuration->getUnsigned("max_queue_length", (unsigned long&) maxQueueLength);
   configuration->getUnsigned("buffer_send_rate", (unsigned long&) bufferSendRate);
-  configuration->getUnsigned("retry_interval", (unsigned long&) avgRetryInterval);
-  configuration->getUnsigned("retry_interval_range", (unsigned long&) retryIntervalRange);
+
+  // Used for linear backoff case
+  configuration->getUnsigned("retry_interval",
+                             (unsigned long&) avgRetryInterval);
+  configuration->getUnsigned("retry_interval_range",
+                             (unsigned long&) retryIntervalRange);
+
+  // Used in case of adaptive backoff
+  // max_random_offset should be some fraction of max_retry_interval
+  // 20% of max_retry_interval should be a decent value
+  // if you are using max_random_offset > max_retry_interval you should
+  // probably not be using adaptive backoff and using retry_interval and
+  // retry_interval_range parameters to do linear backoff instead
+  configuration->getUnsigned("min_retry_interval",
+                             (unsigned long&) minRetryInterval);
+  configuration->getUnsigned("max_retry_interval",
+                             (unsigned long&) maxRetryInterval);
+  configuration->getUnsigned("max_random_offset",
+                             (unsigned long&) maxRandomOffset);
+  if (maxRandomOffset > maxRetryInterval) {
+    LOG_OPER(" Warning max_random_offset > max_retry_interval look at using adaptive_backoff=no instead setting max_random_offset to max_retry_interval");
+    maxRandomOffset = maxRetryInterval;
+  }
 
   string tmp;
   if (configuration->getString("replay_buffer", tmp) && tmp != "yes") {
     replayBuffer = false;
   }
 
+  if (configuration->getString("adaptive_backoff", tmp) && tmp == "yes") {
+    adaptiveBackoff = true;
+  }
+
   if (retryIntervalRange > avgRetryInterval) {
     LOG_OPER("[%s] Bad config - retry_interval_range must be less than retry_interval. Using <%d> as range instead of <%d>",
-             categoryHandled.c_str(), (int)avgRetryInterval, (int)retryIntervalRange);
+             categoryHandled.c_str(), (int)avgRetryInterval,
+             (int)retryIntervalRange);
     retryIntervalRange = avgRetryInterval;
+  }
+  if (minRetryInterval > maxRetryInterval) {
+    LOG_OPER("[%s] Bad config - min_retry_interval must be less than max_retry_interval. Using <%d> and  <%d>, the default values instead",
+             categoryHandled.c_str(), DEFAULT_MIN_RETRY, DEFAULT_MAX_RETRY );
+    minRetryInterval = DEFAULT_MIN_RETRY;
+    maxRetryInterval = DEFAULT_MAX_RETRY;
   }
 
   pStoreConf secondary_store_conf;
@@ -1266,7 +1315,13 @@ shared_ptr<Store> BufferStore::copy(const std::string &category) {
   store->bufferSendRate = bufferSendRate;
   store->avgRetryInterval = avgRetryInterval;
   store->retryIntervalRange = retryIntervalRange;
+  store->retryInterval = retryInterval;
+  store->numContSuccess = numContSuccess;
   store->replayBuffer = replayBuffer;
+  store->minRetryInterval = minRetryInterval;
+  store->maxRetryInterval = maxRetryInterval;
+  store->maxRandomOffset = maxRandomOffset;
+  store->adaptiveBackoff = adaptiveBackoff;
 
   store->primaryStore = primaryStore->copy(category);
   store->secondaryStore = secondaryStore->copy(category);
@@ -1276,8 +1331,10 @@ shared_ptr<Store> BufferStore::copy(const std::string &category) {
 bool BufferStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   lastWriteTime = time(NULL);
 
-  // If the queue is really long it's probably because the primary store isn't moving
-  // fast enough and is backing up, in which case it's best to give up on it for now.
+  // If the queue is really long it's probably
+  // because the primary store isn't moving
+  // fast enough and is backing up, in which
+  // case it's best to give up on it for now.
   if (state == STREAMING && messages->size() > maxQueueLength) {
     LOG_OPER("[%s] BufferStore queue backing up, switching to secondary store (%u messages)", categoryHandled.c_str(), (unsigned)messages->size());
     changeState(DISCONNECTED);
@@ -1285,6 +1342,9 @@ bool BufferStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) 
 
   if (state == STREAMING) {
     if (primaryStore->handleMessages(messages)) {
+      if (adaptiveBackoff) {
+        setNewRetryInterval(true);
+      }
       return true;
     } else {
       changeState(DISCONNECTED);
@@ -1330,10 +1390,8 @@ void BufferStore::changeState(buffer_state_t new_state) {
     // Whatever caused us to enter this state should have either set status
     // or chosen not to set status.
     g_Handler->incrementCounter("retries");
+    setNewRetryInterval(false);
     lastOpenAttempt = time(NULL);
-    retryInterval = getNewRetryInterval();
-    LOG_OPER("[%s] choosing new retry interval <%d> seconds", categoryHandled.c_str(),
-             (int)retryInterval);
     if (!secondaryStore->isOpen()) {
       secondaryStore->open();
     }
@@ -1347,7 +1405,8 @@ void BufferStore::changeState(buffer_state_t new_state) {
     break;
   }
 
-  LOG_OPER("[%s] Changing state from <%s> to <%s>", categoryHandled.c_str(), stateAsString(state), stateAsString(new_state));
+  LOG_OPER("[%s] Changing state from <%s> to <%s>", categoryHandled.c_str(),
+           stateAsString(state), stateAsString(new_state));
   state = new_state;
 }
 
@@ -1362,9 +1421,7 @@ void BufferStore::periodicCheck() {
   localtime_r(&now, &nowinfo);
 
   if (state == DISCONNECTED) {
-
     if (now - lastOpenAttempt > retryInterval) {
-
       if (primaryStore->open()) {
         // Success.  Check if we need to send buffers from secondary to primary
         if (replayBuffer) {
@@ -1379,6 +1436,7 @@ void BufferStore::periodicCheck() {
     }
   }
 
+  // send data in case of backup
   if (state == SENDING_BUFFER) {
 
     // Read a group of messages from the secondary store and send them to
@@ -1386,9 +1444,12 @@ void BufferStore::periodicCheck() {
     // again later, so this isn't very efficient if it reads too many
     // messages at once. (if the secondary store is a file, the number of
     // messages read is controlled by the max file size)
+    // parameter max_size for filestores in the configuration
     unsigned sent = 0;
     for (sent = 0; sent < bufferSendRate; ++sent) {
       boost::shared_ptr<logentry_vector_t> messages(new logentry_vector_t);
+      // Reads come complete buffered file
+      // this file size is controlled by max_size in the configuration
       if (secondaryStore->readOldest(messages, &nowinfo)) {
         lastWriteTime = time(NULL);
 
@@ -1396,25 +1457,28 @@ void BufferStore::periodicCheck() {
         if (size) {
           if (primaryStore->handleMessages(messages)) {
             secondaryStore->deleteOldest(&nowinfo);
+            if (adaptiveBackoff) {
+              setNewRetryInterval(true);
+            }
           } else {
 
             if (messages->size() != size) {
               // We were only able to process some, but not all of this batch
-              // of messages.  Replace this batch of messages with just the messages
-              // that were not processed.
+              // of messages.  Replace this batch of messages with
+              // just the messages that were not processed.
               LOG_OPER("[%s] buffer store primary store processed %lu/%lu messages",
                        categoryHandled.c_str(), size - messages->size(), size);
 
               // Put back un-handled messages
               if (!secondaryStore->replaceOldest(messages, &nowinfo)) {
-                // Nothing we can do but try to remove oldest messages and report a loss
+                // Nothing we can do but try to remove oldest messages and
+                // report a loss
                 LOG_OPER("[%s] buffer store secondary store lost %lu messages",
                          categoryHandled.c_str(), messages->size());
                 g_Handler->incrementCounter("lost", messages->size());
                 secondaryStore->deleteOldest(&nowinfo);
               }
             }
-
             changeState(DISCONNECTED);
             break;
           }
@@ -1423,14 +1487,17 @@ void BufferStore::periodicCheck() {
           secondaryStore->deleteOldest(&nowinfo);
         }
       } else {
-        // This is bad news. We'll stay in the sending state and keep trying to read.
+        // This is bad news. We'll stay in the sending state
+        // and keep trying to read.
         setStatus("Failed to read from secondary store");
-        LOG_OPER("[%s] WARNING: buffer store can't read from secondary store", categoryHandled.c_str());
+        LOG_OPER("[%s] WARNING: buffer store can't read from secondary store",
+                 categoryHandled.c_str());
         break;
       }
 
       if (secondaryStore->empty(&nowinfo)) {
-        LOG_OPER("[%s] No more buffer files to send, switching to streaming mode", categoryHandled.c_str());
+        LOG_OPER("[%s] No more buffer files to send, switching to streaming mode",
+                  categoryHandled.c_str());
         changeState(STREAMING);
 
         primaryStore->flush();
@@ -1440,10 +1507,75 @@ void BufferStore::periodicCheck() {
   }// if state == SENDING_BUFFER
 }
 
+/*
+ * This functions sets a new time interval after which the buffer store
+ * will retry connecting to primary. There are two modes based on the
+ * config parameter 'adaptive_backoff'.
+ *
+ *
+ * When adaptive_backoff=yes this function uses an Additive Increase and
+ * Multiplicative Decrease strategy which is commonly used in networking
+ * protocols for congestion avoidance, while achieving fairness and good
+ * throughput for multiple senders.
+ * The algorithm works as follows. Whenever the buffer store is able to
+ * achieve CONT_SUCCESS_THRESHOLD continuous successful sends to the
+ * primary store its retry interval is decreased by ADD_DEC_FACTOR.
+ * Whenever the buffer store fails to send to primary its retry interval
+ * is increased by multiplying a MULT_INC_FACTOR to it. To avoid thundering
+ * herds problems a random offset is added to this new retry interval
+ * controlled by 'max_random_offset' config parameter.
+ * The range of the retry interval is controlled by config parameters
+ * 'min_retry_interval' and 'max_retry_interval'.
+ * Currently CONT_SUCCESS_THRESHOLD, ADD_DEC_FACTOR and MULT_INC_FACTOR
+ * are not config parameters. This can be done later if need be.
+ *
+ *
+ * In case adaptive_backoff=no, the new retry interval is calculated
+ * using the config parameters 'avg_retry_interval' and
+ * 'retry_interval_range'
+ */
+void BufferStore::setNewRetryInterval(bool success) {
 
-time_t BufferStore::getNewRetryInterval() {
-  time_t interval = avgRetryInterval - retryIntervalRange/2 + rand() % retryIntervalRange;
-  return interval;
+  if (adaptiveBackoff) {
+    time_t prevRetryInterval = retryInterval;
+    if (success) {
+      numContSuccess++;
+      if (numContSuccess >= CONT_SUCCESS_THRESHOLD) {
+        if (retryInterval > ADD_DEC_FACTOR) {
+          retryInterval -= ADD_DEC_FACTOR;
+        }
+        else {
+          retryInterval = minRetryInterval;
+        }
+        if (retryInterval < minRetryInterval) {
+          retryInterval = minRetryInterval;
+        }
+        numContSuccess = 0;
+      }
+      else {
+        return;
+      }
+    }
+    else {
+      retryInterval *= MULT_INC_FACTOR;
+      retryInterval += (rand() % maxRandomOffset);
+      if (retryInterval > maxRetryInterval) {
+        retryInterval = maxRetryInterval;
+      }
+      numContSuccess = 0;
+    }
+    // prevent unnecessary prints
+    if (prevRetryInterval == retryInterval) {
+      return;
+    }
+  }
+  else {
+    retryInterval = avgRetryInterval - retryIntervalRange/2
+                    + rand() % retryIntervalRange;
+  }
+  LOG_OPER("[%s] choosing new retry interval <%lu> seconds",
+           categoryHandled.c_str(),
+           (unsigned long) retryInterval);
 }
 
 const char* BufferStore::stateAsString(buffer_state_t state) {
@@ -1522,7 +1654,6 @@ void NetworkStore::configure(pStoreConf configuration) {
 }
 
 bool NetworkStore::open() {
-
   if (smcBased) {
     bool success = true;
     time_t now = time(NULL);
@@ -1985,6 +2116,7 @@ string BucketStore::getStatus() {
   return retval;
 }
 
+// Call periodicCheck on all containing stores
 void BucketStore::periodicCheck() {
   for (std::vector<shared_ptr<Store> >::iterator iter = buckets.begin();
        iter != buckets.end();
@@ -2010,6 +2142,12 @@ shared_ptr<Store> BucketStore::copy(const std::string &category) {
   return copied;
 }
 
+/*
+ * Bucketize <messages> and try to send to each contained bucket store
+ * At the end of the function <messages> will contain all the messages that
+ * could not be processed
+ * Returns true if all messages were successfully sent, false otherwise.
+ */
 bool BucketStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   bool success = true;
 
@@ -2078,6 +2216,7 @@ bool BucketStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) 
   return success;
 }
 
+// Return the bucket number a message must be put into
 unsigned long BucketStore::bucketize(const std::string& message) {
 
   string::size_type length = message.length();
@@ -2368,6 +2507,7 @@ bool MultiStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   return (report_success == SUCCESS_ALL) ? all_result : any_result;
 }
 
+// Call periodicCheck on all contained stores
 void MultiStore::periodicCheck() {
   for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
        iter != stores.end();

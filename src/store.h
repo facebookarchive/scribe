@@ -297,21 +297,29 @@ class BufferStore : public Store {
   void changeState(buffer_state_t new_state); // handles state pre and post conditions
   const char* stateAsString(buffer_state_t state);
 
-  time_t getNewRetryInterval(); // generates a random interval based on config
+  void setNewRetryInterval(bool);
 
   // configuration
   unsigned long maxQueueLength;   // in number of messages
-  unsigned long bufferSendRate;   // number of buffer files sent each periodicCheck
+  unsigned long bufferSendRate;   // number of buffer files
+                                  // sent each periodicCheck
   time_t avgRetryInterval;        // in seconds, for retrying primary store open
   time_t retryIntervalRange;      // in seconds
   bool   replayBuffer;            // whether to send buffers from
                                   // secondary store to primary
+  bool adaptiveBackoff;           // Adaptive backoff mode indicator
+  unsigned long minRetryInterval; // The min the retryInterval can become
+  unsigned long maxRetryInterval; // The max the retryInterval can become
+  unsigned long maxRandomOffset;  // The max random offset added
+                                  // to the retry interval
+
 
   // state
+  time_t retryInterval;           // the current retry interval in seconds
+  unsigned long numContSuccess;   // number of continuous successful sends
   buffer_state_t state;
   time_t lastWriteTime;
   time_t lastOpenAttempt;
-  time_t retryInterval;
 
  private:
   // disallow copy, assignment, and empty construction
@@ -353,6 +361,8 @@ class NetworkStore : public Store {
   server_vector_t servers;
   unsigned long serviceCacheTimeout;
   time_t lastServiceCheck;
+  // if true do not update status to reflect failure to connect
+  bool ignoreNetworkError;
 
   // state
   bool opened;
@@ -435,7 +445,8 @@ class NullStore : public Store {
   void flush();
 
   // null stores are readable, but you never get anything
-  virtual bool readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages,                          struct tm* now);
+  virtual bool readOldest(boost::shared_ptr<logentry_vector_t> messages,
+                          struct tm* now);
   virtual bool replaceOldest(boost::shared_ptr<logentry_vector_t> messages,
                              struct tm* now);
   virtual void deleteOldest(struct tm* now);
