@@ -13,7 +13,7 @@
 //  limitations under the License.
 //
 // See accompanying file LICENSE or visit the Scribe site at:
-// http://developers.facebook.com/scribe/ 
+// http://developers.facebook.com/scribe/
 //
 // @author Bobby Johnson
 // @author James Wang
@@ -98,7 +98,7 @@ bool ConnPool::openCommon(const string &key, shared_ptr<scribeConn> conn) {
     pthread_mutex_unlock(&mapMutex);
     return true;
   } else {
-    // don't need to lock the conn yet, because no one know about 
+    // don't need to lock the conn yet, because no one know about
     // it until we release the mapMutex
     if (conn->open()) {
       // ref count starts at one, so don't addRef here
@@ -204,6 +204,7 @@ bool scribeConn::open() {
     if (!socket) {
       throw std::runtime_error("Failed to create socket");
     }
+
     socket->setConnTimeout(timeout);
     socket->setRecvTimeout(timeout);
     socket->setSendTimeout(timeout);
@@ -223,7 +224,9 @@ bool scribeConn::open() {
     }
 
     framedTransport->open();
-
+    if (smcBased) {
+      remoteHost = socket->getPeerHost();
+    }
   } catch (TTransportException& ttx) {
     LOG_OPER("failed to open connection to remote scribe server %s thrift error <%s>",
              connectionString().c_str(), ttx.what());
@@ -249,65 +252,58 @@ void scribeConn::close() {
 
 bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
   int size = messages->size();
-
   if (size <= 0) {
     return true;
+  }
+  if (!isOpen()) {
+    if (!open()) {
+      return false;
+    }
   }
 
   // Copy the vector of pointers to a vector of objects
   // This is because thrift doesn't support vectors of pointers,
   // but we need to use them internally to avoid even more copies.
   std::vector<LogEntry> msgs;
+  msgs.reserve(size);
   for (logentry_vector_t::iterator iter = messages->begin();
        iter != messages->end();
        ++iter) {
     msgs.push_back(**iter);
   }
-
-  // If a send fails we immediately try to reopen the connection
-  // and send again. This is so in the case where a central server
-  // behind a load balancer fails we just reconnect to a different one.
   ResultCode result = TRY_LATER;
-  bool retry = true;
-  for (int i = 0; i < 2; ++i) {
-    try {
-      result = resendClient->Log(msgs);
+  try {
+    result = resendClient->Log(msgs);
+>>>>>>> 7695d05... Remove Retry sending if sending fails in conn_pool
 
-      if (result == OK) {
+    if (result == OK) {
+      if (g_Handler) {
         g_Handler->incrementCounter("sent", size);
-        LOG_OPER("Successfully sent <%d> messages to remote scribe server %s",
-                 size, connectionString().c_str());
-        return true;
-      } else {
-        LOG_OPER("Failed to send <%d> messages, remote scribe server %s returned error code <%d>",
-                 size, connectionString().c_str(), (int) result);
-        // Don't retry here. If this server is overloaded they probably all are.
-        retry = false;
       }
-    } catch (TTransportException& ttx) {
-      LOG_OPER("Failed to send <%d> messages to remote scribe server %s error <%s>",
-               size, connectionString().c_str(), ttx.what());
-    } catch (...) {
-      LOG_OPER("Unknown exception sending <%d> messages to remote scribe server %s",
-               size, connectionString().c_str());
+      LOG_OPER("Successfully sent <%d> messages to remote scribe server %s",
+          size, connectionString().c_str());
+      return true;
+    } else {
+      LOG_OPER("Failed to send <%d> messages, remote scribe server %s returned error code <%d>",
+          size, connectionString().c_str(),
+          (int) result);
     }
-
-    // we only get here if sending failed
-    close();
-    if (!open()) {
-      return false;
-    }
-
-    if (!retry) {
-      break;
-    }
+  } catch (TTransportException& ttx) {
+    LOG_OPER("Failed to send <%d> messages to remote scribe server %s error <%s>",
+        size, connectionString().c_str(),
+        ttx.what());
+  } catch (...) {
+    LOG_OPER("Unknown exception sending <%d> messages to remote scribe server %s",
+        size, connectionString().c_str());
   }
+   // we only get here if sending failed
+  close();
   return false;
 }
 
 std::string scribeConn::connectionString() {
 	if (smcBased) {
-		return "<SMC service: " + smcService + ">";
+		return "<" + remoteHost + " SMC service: " + smcService + ">";
 	} else {
 		char port[10];
 		snprintf(port, 10, "%lu", remotePort);
