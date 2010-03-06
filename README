@@ -74,7 +74,13 @@ Helpful tips:
  scribe or fb303, try setting the environment variable PYTHONPATH to the
  location of the installed packages.  This path gets output during
  'make install'. (Eg: PYTHONPATH='/usr/lib/python2.5/site-packages').
-
+-The current version of scribe_cat does not work with the stable version of
+ thrift, as of 5th March 2010. To get it to work change
+ log_entry = scribe.LogEntry(category=category, message=sys.stdin.read())
+ to
+ log_entry = scribe.LogEntry(dict(category=category, message=sys.stdin.read()))
+ The current scribe_cat works with latest thrift code if you clone their dev 
+ repository.
 
 Resources
 =========

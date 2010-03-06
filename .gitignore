@@ -8,3 +8,4 @@ depcomp
 install-sh
 missing
 mkinstalldirs
+*.o
