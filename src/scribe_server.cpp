@@ -44,7 +44,7 @@ shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_SERVER_THREADS     1
 
 void print_usage(const char* program_name) {
-  cout << "Usage: " << program_name << " [-p port] [-c config_file]";
+  cout << "Usage: " << program_name << " [-p port] [-c config_file]" << endl;
 }
 
 int main(int argc, char **argv) {
