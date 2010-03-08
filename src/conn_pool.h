@@ -53,8 +53,8 @@ class scribeConn {
 
   unsigned refCount;
 
-  bool smcBased;
-  std::string smcService;
+  bool serviceBased;
+  std::string serviceName;
   server_vector_t serverList;
   std::string remoteHost;
   unsigned long remotePort;
@@ -62,13 +62,13 @@ class scribeConn {
   pthread_mutex_t mutex;
 };
 
-// key is hostname:port or the smc_service
+// key is hostname:port or the service
 typedef std::map<std::string, boost::shared_ptr<scribeConn> > conn_map_t;
 
 // Scribe class to manage connection pooling
-// Maintains a map of (<host,port> or smc_service) to scribeConn class.
+// Maintains a map of (<host,port> or service) to scribeConn class.
 // used to ensure that there is only one connection from one particular
-// scribe server to any host,port or smc_service.
+// scribe server to any host,port or service.
 // see the global g_connPool in store.cpp
 class ConnPool {
  public:

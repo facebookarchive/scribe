@@ -388,11 +388,11 @@ class NetworkStore : public Store {
 
   // configuration
   bool useConnPool;
-  bool smcBased;
+  bool serviceBased;
   long int timeout;
   std::string remoteHost;
   unsigned long remotePort; // long because it works with config code
-  std::string smcService;
+  std::string serviceName;
   std::string serviceOptions;
   server_vector_t servers;
   unsigned long serviceCacheTimeout;

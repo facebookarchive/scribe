@@ -1689,7 +1689,7 @@ NetworkStore::NetworkStore(StoreQueue* storeq,
                           bool multi_category)
   : Store(storeq, category, "network", multi_category),
     useConnPool(false),
-    smcBased(false),
+    serviceBased(false),
     remotePort(0),
     serviceCacheTimeout(DEFAULT_NETWORKSTORE_CACHE_TIMEOUT),
     lastServiceCheck(0),
@@ -1707,15 +1707,15 @@ NetworkStore::~NetworkStore() {
 
 void NetworkStore::configure(pStoreConf configuration) {
   // Error checking is done on open()
-  // smc takes precedence over host + port
-  if (configuration->getString("smc_service", smcService)) {
-    smcBased = true;
+  // service takes precedence over host + port
+  if (configuration->getString("smc_service", serviceName)) {
+    serviceBased = true;
 
     // Constructor defaults are fine if these don't exist
     configuration->getString("service_options", serviceOptions);
     configuration->getUnsigned("service_cache_timeout", serviceCacheTimeout);
   } else {
-    smcBased = false;
+    serviceBased = false;
     configuration->getString("remote_host", remoteHost);
     configuration->getUnsigned("remote_port", remotePort);
   }
@@ -1733,7 +1733,7 @@ void NetworkStore::configure(pStoreConf configuration) {
 }
 
 bool NetworkStore::open() {
-  if (smcBased) {
+  if (serviceBased) {
     bool success = true;
     time_t now = time(NULL);
 
@@ -1742,22 +1742,22 @@ bool NetworkStore::open() {
       lastServiceCheck = now;
 
       success =
-        network_config::getService(smcService, serviceOptions, servers);
+        network_config::getService(serviceName, serviceOptions, servers);
     }
 
     // Cannot open if we couldn't find any servers
     if (!success || servers.empty()) {
-      LOG_OPER("[%s] Failed to get servers from smc", categoryHandled.c_str());
-      setStatus("Could not get list of servers from smc");
+      LOG_OPER("[%s] Failed to get servers from service", categoryHandled.c_str());
+      setStatus("Could not get list of servers from service");
       return false;
     }
 
     if (useConnPool) {
-      opened = g_connPool.open(smcService, servers, static_cast<int>(timeout));
+      opened = g_connPool.open(serviceName, servers, static_cast<int>(timeout));
     } else {
       // only open unpooled connection if not already open
       if (unpooledConn == NULL) {
-        unpooledConn = shared_ptr<scribeConn>(new scribeConn(smcService, servers, static_cast<int>(timeout)));
+        unpooledConn = shared_ptr<scribeConn>(new scribeConn(serviceName, servers, static_cast<int>(timeout)));
         opened = unpooledConn->open();
       } else {
         opened = unpooledConn->isOpen();
@@ -1805,8 +1805,8 @@ void NetworkStore::close() {
   }
   opened = false;
   if (useConnPool) {
-    if (smcBased) {
-      g_connPool.close(smcService);
+    if (serviceBased) {
+      g_connPool.close(serviceName);
     } else {
       g_connPool.close(remoteHost, remotePort);
     }
@@ -1826,11 +1826,11 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
   shared_ptr<Store> copied = shared_ptr<Store>(store);
 
   store->useConnPool = useConnPool;
-  store->smcBased = smcBased;
+  store->serviceBased = serviceBased;
   store->timeout = timeout;
   store->remoteHost = remoteHost;
   store->remotePort = remotePort;
-  store->smcService = smcService;
+  store->serviceName = serviceName;
 
   return copied;
 }
@@ -1840,8 +1840,8 @@ bool NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages)
     LOG_OPER("[%s] Logic error: NetworkStore::handleMessages called on closed store", categoryHandled.c_str());
     return false;
   } else if (useConnPool) {
-    if (smcBased) {
-      return g_connPool.send(smcService, messages);
+    if (serviceBased) {
+      return g_connPool.send(serviceName, messages);
     } else {
       return g_connPool.send(remoteHost, remotePort, messages);
     }

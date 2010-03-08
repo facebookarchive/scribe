@@ -150,7 +150,7 @@ bool ConnPool::sendCommon(const string &key,
 
 scribeConn::scribeConn(const string& hostname, unsigned long port, int timeout_)
   : refCount(1),
-  smcBased(false),
+  serviceBased(false),
   remoteHost(hostname),
   remotePort(port),
   timeout(timeout_) {
@@ -159,8 +159,8 @@ scribeConn::scribeConn(const string& hostname, unsigned long port, int timeout_)
 
 scribeConn::scribeConn(const string& service, const server_vector_t &servers, int timeout_)
   : refCount(1),
-  smcBased(true),
-  smcService(service),
+  serviceBased(true),
+  serviceName(service),
   serverList(servers),
   timeout(timeout_) {
   pthread_mutex_init(&mutex, NULL);
@@ -197,7 +197,7 @@ bool scribeConn::isOpen() {
 bool scribeConn::open() {
   try {
 
-    socket = smcBased ?
+    socket = serviceBased ?
       shared_ptr<TSocket>(new TSocketPool(serverList)) :
       shared_ptr<TSocket>(new TSocket(remoteHost, remotePort));
 
@@ -224,7 +224,7 @@ bool scribeConn::open() {
     }
 
     framedTransport->open();
-    if (smcBased) {
+    if (serviceBased) {
       remoteHost = socket->getPeerHost();
     }
   } catch (TTransportException& ttx) {
@@ -298,8 +298,8 @@ bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
 }
 
 std::string scribeConn::connectionString() {
-	if (smcBased) {
-		return "<" + remoteHost + " SMC service: " + smcService + ">";
+	if (serviceBased) {
+		return "<" + remoteHost + " Service: " + serviceName + ">";
 	} else {
 		char port[10];
 		snprintf(port, 10, "%lu", remotePort);
