@@ -19,6 +19,7 @@
 // @author James Wang
 // @author Jason Sobel
 // @author Anthony Giardullo
+// @author John Song
 
 #include "common.h"
 #include "scribe_server.h"
@@ -49,14 +50,15 @@ StoreQueue::StoreQueue(const string& type, const string& category,
     maxWriteInterval(DEFAULT_MAX_WRITE_INTERVAL),
     mustSucceed(true) {
 
-  store = Store::createStore(type, category, false, multiCategory);
+  store = Store::createStore(this, type, category,
+                            false, multiCategory);
   if (!store) {
     throw std::runtime_error("createStore failed in StoreQueue constructor. Invalid type?");
   }
   storeInitCommon();
 }
 
-StoreQueue::StoreQueue(const shared_ptr<StoreQueue> example,
+StoreQueue::StoreQueue(const boost::shared_ptr<StoreQueue> example,
                        const std::string &category)
   : msgQueueSize(0),
     hasWork(false),
@@ -88,11 +90,15 @@ StoreQueue::~StoreQueue() {
 
 // WARNING: the number could change after you check this, so don't
 // expect it to be exact. Use for hueristics ONLY.
-unsigned long StoreQueue::getSize() {
+unsigned long StoreQueue::getSize(bool lock) {
   unsigned long retval;
-  pthread_mutex_lock(&msgMutex);
+  if (lock) {
+    pthread_mutex_lock(&msgMutex);
+  }
   retval = msgQueueSize;
-  pthread_mutex_unlock(&msgMutex);
+  if (lock) {
+    pthread_mutex_unlock(&msgMutex);
+  }
   return retval;
 }
 
