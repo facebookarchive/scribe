@@ -274,7 +274,6 @@ bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
   ResultCode result = TRY_LATER;
   try {
     result = resendClient->Log(msgs);
->>>>>>> 7695d05... Remove Retry sending if sending fails in conn_pool
 
     if (result == OK) {
       if (g_Handler) {
