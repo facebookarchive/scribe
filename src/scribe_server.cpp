@@ -39,7 +39,7 @@ using boost::shared_ptr;
 shared_ptr<scribeHandler> g_Handler;
 
 #define DEFAULT_CHECK_PERIOD       5
-#define DEFAULT_MAX_MSG_PER_SECOND 100000
+#define DEFAULT_MAX_MSG_PER_SECOND 0
 #define DEFAULT_MAX_QUEUE_SIZE     5000000
 #define DEFAULT_SERVER_THREADS     3
 
@@ -474,6 +474,9 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
 // Allows a fixed number of messages per second.
 bool scribeHandler::throttleDeny(int num_messages) {
   time_t now;
+  if (0 == maxMsgPerSecond)
+    return false;
+
   time(&now);
   if (now != lastMsgTime) {
     lastMsgTime = now;
