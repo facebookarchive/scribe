@@ -164,6 +164,7 @@ class FileStoreBase : public Store {
   bool writeCategory;
   bool createSymlink;
   bool writeStats;
+  bool rotateOnReopen;
 
   // State
   unsigned long currentSize;
