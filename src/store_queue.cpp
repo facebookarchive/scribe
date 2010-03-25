@@ -28,7 +28,7 @@ using namespace std;
 using namespace boost;
 using namespace scribe::thrift;
 
-#define DEFAULT_TARGET_WRITE_SIZE  16384
+#define DEFAULT_TARGET_WRITE_SIZE  16384LL
 #define DEFAULT_MAX_WRITE_INTERVAL 10
 
 void* threadStatic(void *this_ptr) {
@@ -90,8 +90,8 @@ StoreQueue::~StoreQueue() {
 
 // WARNING: the number could change after you check this, so don't
 // expect it to be exact. Use for hueristics ONLY.
-unsigned long StoreQueue::getSize(bool lock) {
-  unsigned long retval;
+unsigned long long StoreQueue::getSize(bool lock) {
+  unsigned long long retval;
   if (lock) {
     pthread_mutex_lock(&msgMutex);
   }
@@ -360,7 +360,7 @@ void StoreQueue::storeInitCommon() {
 
 void StoreQueue::configureInline(pStoreConf configuration) {
   // Constructor defaults are fine if these don't exist
-  configuration->getUnsigned("target_write_size", (unsigned long&) targetWriteSize);
+  configuration->getUnsignedLongLong("target_write_size", targetWriteSize);
   configuration->getUnsigned("max_write_interval", (unsigned long&) maxWriteInterval);
 
   string tmp;

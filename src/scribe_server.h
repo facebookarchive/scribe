@@ -79,7 +79,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   time_t lastMsgTime;
   unsigned long numMsgLastSecond;
   unsigned long maxMsgPerSecond;
-  unsigned long maxQueueSize;
+  unsigned long long maxQueueSize;
   bool newThreadPerCategory;
 
   /* mutex to syncronize access to scribeHandler.

@@ -40,8 +40,9 @@ shared_ptr<scribeHandler> g_Handler;
 
 #define DEFAULT_CHECK_PERIOD       5
 #define DEFAULT_MAX_MSG_PER_SECOND 0
-#define DEFAULT_MAX_QUEUE_SIZE     5000000
+#define DEFAULT_MAX_QUEUE_SIZE     5000000LL
 #define DEFAULT_SERVER_THREADS     3
+
 
 void print_usage(const char* program_name) {
   cout << "Usage: " << program_name << " [-p port] [-c config_file]" << endl;
@@ -305,7 +306,7 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   // Also note that we always check all categories, not just the ones in this request.
   // This is a simplification based on the assumption that most Log() calls contain most
   // categories.
-  unsigned long max_count = 0;
+  unsigned long long max_count = 0;
   for (category_map_t::iterator cat_iter = pcategories->begin();
        cat_iter != pcategories->end();
        ++cat_iter) {
@@ -319,7 +320,7 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
       if (*store_iter == NULL) {
         throw std::logic_error("throttle check: iterator in store map holds null pointer");
       } else {
-        unsigned long size = (*store_iter)->getSize();
+        unsigned long long size = (*store_iter)->getSize();
         if (size > max_count) {
           max_count = size;
         }
@@ -563,7 +564,7 @@ void scribeHandler::initialize() {
 
     // load the global config
     config.getUnsigned("max_msg_per_second", maxMsgPerSecond);
-    config.getUnsigned("max_queue_size", maxQueueSize);
+    config.getUnsignedLongLong("max_queue_size", maxQueueSize);
     config.getUnsigned("check_interval", checkPeriod);
 
     // If new_thread_per_category, then we will create a new thread/StoreQueue
