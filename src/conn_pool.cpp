@@ -276,16 +276,13 @@ bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
     result = resendClient->Log(msgs);
 
     if (result == OK) {
-      if (g_Handler) {
-        g_Handler->incrementCounter("sent", size);
-      }
+      g_Handler->incCounter("sent", size);
       LOG_OPER("Successfully sent <%d> messages to remote scribe server %s",
           size, connectionString().c_str());
       return true;
     } else {
       LOG_OPER("Failed to send <%d> messages, remote scribe server %s returned error code <%d>",
-          size, connectionString().c_str(),
-          (int) result);
+          size, connectionString().c_str(), (int) result);
     }
   } catch (TTransportException& ttx) {
     LOG_OPER("Failed to send <%d> messages to remote scribe server %s error <%s>",

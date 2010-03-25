@@ -43,9 +43,28 @@ shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_MAX_QUEUE_SIZE     5000000LL
 #define DEFAULT_SERVER_THREADS     3
 
+static string overall_category = "scribe_overall";
+static string log_separator = ":";
 
 void print_usage(const char* program_name) {
   cout << "Usage: " << program_name << " [-p port] [-c config_file]" << endl;
+}
+
+void scribeHandler::incCounter(string category, string counter) {
+  incCounter(category, counter, 1);
+}
+
+void scribeHandler::incCounter(string category, string counter, long amount) {
+  incrementCounter(category + log_separator + counter, amount);
+  incrementCounter(overall_category + log_separator + counter, amount);
+}
+
+void scribeHandler::incCounter(string counter) {
+  incCounter(counter, 1);
+}
+
+void scribeHandler::incCounter(string counter, long amount) {
+  incrementCounter(overall_category + log_separator + counter, amount);
 }
 
 int main(int argc, char **argv) {
@@ -287,14 +306,14 @@ bool scribeHandler::createCategoryFromModel(
 bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   // Check if we need to rate limit
   if (throttleDeny(messages.size())) {
-    incrementCounter("denied for rate");
+    incCounter("denied for rate");
     return true;
   }
 
   if (!pcategories || !pcategory_prefixes) {
     // don't bother to spam anything for this, our status should already
     // be showing up as WARNING in the monitoring tools.
-    incrementCounter("invalid requests");
+    incCounter("invalid requests");
     return true;
   }
 
@@ -321,16 +340,13 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
         throw std::logic_error("throttle check: iterator in store map holds null pointer");
       } else {
         unsigned long long size = (*store_iter)->getSize();
-        if (size > max_count) {
-          max_count = size;
+        if (size > maxQueueSize) {
+          incCounter("denied for queue size");
+          incCounter((*store_iter)->getCategoryHandled(), "denied for queue size");
+          return true;
         }
       }
     }
-  }
-
-  if (max_count > maxQueueSize) {
-    incrementCounter("denied for queue size");
-    return true;
   }
 
   return false;
@@ -403,9 +419,9 @@ void scribeHandler::addMessage(
   }
 
   if (numstores) {
-    incrementCounter("received good");
+    incCounter(entry.category, "received good");
   } else {
-    incrementCounter("received bad");
+    incCounter(entry.category, "received bad");
   }
 }
 
@@ -426,7 +442,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
 
     // disallow blank category from the start
     if ((*msg_iter).category.empty()) {
-      incrementCounter("received blank category");
+      incCounter("received blank category");
       continue;
     }
 
@@ -454,9 +470,9 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
     }
 
     if (store_list == NULL) {
-       LOG_OPER("log entry has invalid category <%s>",
-                (*msg_iter).category.c_str());
-      incrementCounter("received bad");
+      LOG_OPER("log entry has invalid category <%s>", category.c_str());
+      incCounter(category, "received bad");
+
       continue;
     }
 

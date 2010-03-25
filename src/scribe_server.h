@@ -55,6 +55,15 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   // number of threads processing new Thrift connections
   size_t numThriftServerThreads;
 
+
+  inline unsigned long long getMaxQueueSize() {
+    return maxQueueSize;
+  }
+  void incCounter(std::string category, std::string counter);
+  void incCounter(std::string category, std::string counter, long amount);
+  void incCounter(std::string counter);
+  void incCounter(std::string counter, long amount);
+
  private:
   unsigned long checkPeriod; // periodic check interval for all contained stores
 
@@ -112,7 +121,5 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void addMessage(const scribe::thrift::LogEntry& entry,
                   const boost::shared_ptr<store_list_t>& store_list);
 };
-
 extern boost::shared_ptr<scribeHandler> g_Handler;
-
 #endif // SCRIBE_SERVER_H
