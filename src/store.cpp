@@ -297,6 +297,9 @@ void FileStoreBase::configure(pStoreConf configuration) {
   configuration->getString("fs_type", fsType);
 
   configuration->getUnsigned("max_size", maxSize);
+  if(0 == maxSize) {
+    maxSize = ULONG_MAX;
+  }
   configuration->getUnsigned("max_write_size", maxWriteSize);
   configuration->getUnsigned("rotate_hour", rollHour);
   configuration->getUnsigned("rotate_minute", rollMinute);
@@ -388,7 +391,8 @@ void FileStoreBase::rotateFile(time_t currentTime) {
 
   LOG_OPER("[%s] %d:%d rotating file <%s> old size <%lu> max size <%lu>",
            categoryHandled.c_str(), timeinfo.tm_hour, timeinfo.tm_min,
-           makeBaseFilename(&timeinfo).c_str(), currentSize, maxSize);
+           makeBaseFilename(&timeinfo).c_str(), currentSize,
+           maxSize == ULONG_MAX ? 0 : maxSize);
 
   printStats();
   openInternal(true, &timeinfo);
