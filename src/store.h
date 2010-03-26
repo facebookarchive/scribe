@@ -163,6 +163,7 @@ class FileStoreBase : public Store {
   bool writeMeta;
   bool writeCategory;
   bool createSymlink;
+  bool storeTree;
   bool writeStats;
   bool rotateOnReopen;
 
