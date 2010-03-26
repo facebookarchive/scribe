@@ -315,7 +315,6 @@ class BufferStore : public Store {
   void setNewRetryInterval(bool);
 
   // configuration
-  unsigned long maxQueueLength;   // in number of messages
   unsigned long bufferSendRate;   // number of buffer files
                                   // sent each periodicCheck
   time_t avgRetryInterval;        // in seconds, for retrying primary store open

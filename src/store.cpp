@@ -42,7 +42,6 @@ using namespace scribe::thrift;
 #define DEFAULT_FILESTORE_MAX_WRITE_SIZE          1000000
 #define DEFAULT_FILESTORE_ROLL_HOUR               1
 #define DEFAULT_FILESTORE_ROLL_MINUTE             15
-#define DEFAULT_BUFFERSTORE_MAX_QUEUE_LENGTH      2000000
 #define DEFAULT_BUFFERSTORE_SEND_RATE             1
 #define DEFAULT_BUFFERSTORE_AVG_RETRY_INTERVAL    300
 #define DEFAULT_BUFFERSTORE_RETRY_INTERVAL_RANGE  60
@@ -1187,7 +1186,6 @@ BufferStore::BufferStore(StoreQueue* storeq,
                         const string& category,
                         bool multi_category)
   : Store(storeq, category, "buffer", multi_category),
-    maxQueueLength(DEFAULT_BUFFERSTORE_MAX_QUEUE_LENGTH),
     bufferSendRate(DEFAULT_BUFFERSTORE_SEND_RATE),
     avgRetryInterval(DEFAULT_BUFFERSTORE_AVG_RETRY_INTERVAL),
     retryIntervalRange(DEFAULT_BUFFERSTORE_RETRY_INTERVAL_RANGE),
@@ -1214,7 +1212,6 @@ BufferStore::~BufferStore() {
 void BufferStore::configure(pStoreConf configuration) {
 
   // Constructor defaults are fine if these don't exist
-  configuration->getUnsigned("max_queue_length", (unsigned long&) maxQueueLength);
   configuration->getUnsigned("buffer_send_rate", (unsigned long&) bufferSendRate);
 
   // Used for linear backoff case
@@ -1380,7 +1377,6 @@ shared_ptr<Store> BufferStore::copy(const std::string &category) {
   BufferStore *store = new BufferStore(storeQueue, category, multiCategory);
   shared_ptr<Store> copied = shared_ptr<Store>(store);
 
-  store->maxQueueLength = maxQueueLength;
   store->bufferSendRate = bufferSendRate;
   store->avgRetryInterval = avgRetryInterval;
   store->retryIntervalRange = retryIntervalRange;
@@ -1399,15 +1395,6 @@ shared_ptr<Store> BufferStore::copy(const std::string &category) {
 
 bool BufferStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   lastWriteTime = time(NULL);
-
-  // If the queue is really long it's probably
-  // because the primary store isn't moving
-  // fast enough and is backing up, in which
-  // case it's best to give up on it for now.
-  if (state == STREAMING && messages->size() > maxQueueLength) {
-    LOG_OPER("[%s] BufferStore queue backing up, switching to secondary store (%u messages)", categoryHandled.c_str(), (unsigned)messages->size());
-    changeState(DISCONNECTED);
-  }
 
   if (state == STREAMING || (flushStreaming && state == SENDING_BUFFER)) {
     if (primaryStore->handleMessages(messages)) {
