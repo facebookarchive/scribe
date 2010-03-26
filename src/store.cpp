@@ -769,9 +769,11 @@ shared_ptr<Store> FileStore::copy(const std::string &category) {
 bool FileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
 
   if (!isOpen()) {
-    LOG_OPER("[%s] File failed to open FileStore::handleMessages()",
-            categoryHandled.c_str());
-    return false;
+    if (!open()) {
+      LOG_OPER("[%s] File failed to open FileStore::handleMessages()",
+               categoryHandled.c_str());
+      return false;
+    }
   }
 
   // write messages to current file
@@ -1046,7 +1048,9 @@ shared_ptr<Store> ThriftFileStore::copy(const std::string &category) {
 
 bool ThriftFileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   if (!isOpen()) {
-    return false;
+    if (!open()) {
+      return false;
+    }
   }
 
   unsigned long messages_handled = 0;
@@ -1867,7 +1871,9 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
 bool
 NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   if (!isOpen()) {
-    LOG_OPER("[%s] Logic error: NetworkStore::handleMessages called on closed store", categoryHandled.c_str());
+    if (!open()) {
+    LOG_OPER("[%s] Could not open NetworkStore in handleMessages",
+             categoryHandled.c_str());
     return false;
     }
   }
@@ -1903,7 +1909,8 @@ NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
       }
       return unpooledConn->send(messages);
     } else {
-      LOG_OPER("[%s] Logic error: NetworkStore::handleMessages unpooledConn is NULL", categoryHandled.c_str());
+      LOG_OPER("[%s] Logic error: NetworkStore::handleMessages unpooledConn is NULL",
+               categoryHandled.c_str());
       return false;
     }
     if (serviceBased) {

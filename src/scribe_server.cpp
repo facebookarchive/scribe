@@ -267,9 +267,6 @@ bool scribeHandler::createCategoryFromModel(
     return false;
   }
 
-  LOG_OPER("[%s] Creating new category from model %s", category.c_str(),
-           model->getCategoryHandled().c_str());
-
   // Make sure the category name is sane.
   try {
     string clean_path = boost::filesystem::path(category).string();
@@ -288,12 +285,16 @@ bool scribeHandler::createCategoryFromModel(
   if (newThreadPerCategory) {
     // Create a new thread/StoreQueue for this category
     pstore = shared_ptr<StoreQueue>(new StoreQueue(model, category));
+    LOG_OPER("[%s] Creating new category store from model %s",
+             category.c_str(), model->getCategoryHandled().c_str());
 
     // queue a command to the store to open it
     pstore->open();
   } else {
     // Use existing StoreQueue
     pstore = model;
+    LOG_OPER("[%s] Using existing store for the config categories %s",
+             category.c_str(), model->getCategoryHandled().c_str());
   }
 
   shared_ptr<store_list_t> pstores;
