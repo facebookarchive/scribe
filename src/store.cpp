@@ -174,7 +174,6 @@ FileStoreBase::FileStoreBase(StoreQueue* storeq,
     writeMeta(false),
     writeCategory(false),
     createSymlink(true),
-    storeTree(false),
     writeStats(false),
     rotateOnReopen(false),
     currentSize(0),
@@ -276,16 +275,6 @@ void FileStoreBase::configure(pStoreConf configuration) {
     }
   }
 
-  if (configuration->getString("use_tree", tmp)) {
-    if (0 == tmp.compare("yes")) {
-      // force ROLL_HOURLY if config turns on storeTree
-      storeTree = true;
-      rollPeriod = ROLL_HOURLY;
-    } else {
-      storeTree = false;
-    }
-  }
-
   if (configuration->getString("write_stats", tmp)) {
     if (0 == tmp.compare("yes")) {
       writeStats = true;
@@ -328,7 +317,6 @@ void FileStoreBase::copyCommon(const FileStoreBase *base) {
   writeCategory = base->writeCategory;
   createSymlink = base->createSymlink;
   baseSymlinkName = base->baseSymlinkName;
-  storeTree = base->storeTree;
   writeStats = base->writeStats;
   rotateOnReopen = base->rotateOnReopen;
 
@@ -431,52 +419,27 @@ string FileStoreBase::makeFullSymlink() {
 string FileStoreBase::makeBaseFilename(struct tm* creation_time) {
   ostringstream filename;
 
+  filename << baseFileName;
   if (rollPeriod != ROLL_NEVER) {
-    if (storeTree) {
-      filename << creation_time->tm_year + 1900  << '/'
-	       << setw(2) << setfill('0') << creation_time->tm_mon + 1 << '/'
-	       << setw(2) << setfill('0') << creation_time->tm_mday << '/'
-	       << setw(2) << setfill('0') << creation_time->tm_hour << '/';
-      filename << baseFileName;
-      filename << '-' << creation_time->tm_year + 1900  << '-'
-	       << setw(2) << setfill('0') << creation_time->tm_mon + 1 << '-'
-	       << setw(2) << setfill('0')  << creation_time->tm_mday << "-"
-	       << setw(2) << setfill('0')  << creation_time->tm_hour;
-    } else {
-      filename << baseFileName;
+    filename << '-' << creation_time->tm_year + 1900  << '-'
+             << setw(2) << setfill('0') << creation_time->tm_mon + 1 << '-'
+             << setw(2) << setfill('0')  << creation_time->tm_mday;
 
-      filename << '-' << creation_time->tm_year + 1900  << '-'
-	       << setw(2) << setfill('0') << creation_time->tm_mon + 1 << '-'
-	       << setw(2) << setfill('0')  << creation_time->tm_mday;
-    }
-  } else {
-    filename << baseFileName;
   }
-
   return filename.str();
 }
 
 // returns the suffix of the newest file matching base_filename
 int FileStoreBase::findNewestFile(const string& base_filename) {
 
-  /// do not use filePath when we are using the tree store.
-  string currentPath;
-  if (storeTree) {
-    string::size_type slash;
-    currentPath = filePath + "/" + base_filename;
-    slash = currentPath.find_last_of("/");
-    currentPath = currentPath.substr(0, slash);
-  } else {
-    currentPath = filePath;
-  }
-
-  std::vector<std::string> files = FileInterface::list(currentPath, fsType);
+  std::vector<std::string> files = FileInterface::list(filePath, fsType);
 
   int max_suffix = -1;
   std::string retval;
   for (std::vector<std::string>::iterator iter = files.begin();
        iter != files.end();
        ++iter) {
+
     int suffix = getFileSuffix(*iter, base_filename);
     if (suffix > max_suffix) {
       max_suffix = suffix;
@@ -727,13 +690,8 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
         boost::shared_ptr<FileInterface> tmp =
           FileInterface::createFileInterface(fsType, symlinkName, isBufferFile);
         tmp->deleteFile();
-        if (storeTree) {
-          writeFile->createSymlink(file, symlinkName);
-        }
-        else {
-          string symtarget = makeFullFilename(suffix, current_time, false);
-          writeFile->createSymlink(symtarget, symlinkName);
-        }
+        string symtarget = makeFullFilename(suffix, current_time, false);
+        writeFile->createSymlink(symtarget, symlinkName);
       }
       // else it confuses the filename code on reads
 
@@ -1210,13 +1168,8 @@ bool ThriftFileStore::openInternal(bool incrementFilename, struct tm* current_ti
   if (createSymlink) {
     string symlinkName = makeFullSymlink();
     unlink(symlinkName.c_str());
-    if (storeTree) {
-      symlink(filename.c_str(), symlinkName.c_str());
-    }
-    else {
-      string symtarget = makeFullFilename(suffix, current_time, false);
-      symlink(symtarget.c_str(),  symlinkName.c_str());
-    }
+    string symtarget = makeFullFilename(suffix, current_time, false);
+    symlink(symtarget.c_str(), symlinkName.c_str());
   }
 
   return true;

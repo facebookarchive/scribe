@@ -74,19 +74,6 @@ bool StdFile::openRead() {
 }
 
 bool StdFile::openWrite() {
-  /* try to create the directory containing the file */
-  string::size_type slash;
-  if (!filename.empty() &&
-      (filename.find_first_of("/") != string::npos) &&
-      (filename.find_first_of("/") != (slash = filename.find_last_of("/")))) {
-    try {
-      boost::filesystem::create_directories(filename.substr(0, slash));
-    } catch(std::exception const& e) {
-      LOG_OPER("Exception < %s > trying to create directory", e.what());
-      return false;
-    }
-  }
-
   // open file for write in append mode
   ios_base::openmode mode = fstream::out | fstream::app;
   return open(mode);
