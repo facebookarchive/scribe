@@ -351,7 +351,6 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
       } else {
         unsigned long long size = (*store_iter)->getSize();
         if (size > maxQueueSize) {
-          incCounter("denied for queue size");
           incCounter((*store_iter)->getCategoryHandled(), "denied for queue size");
           return true;
         }
