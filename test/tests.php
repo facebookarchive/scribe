@@ -113,6 +113,53 @@ function strange_input_test() {
   print "Log returned: " . $ret . "\n";
 }
 
+/* Read file, $file line by line send to scribe at localhost:1463
+ * with a category name = $category each line becomes a message.
+ * messages are sent at a rate of $rate messages per second
+ */
+function file_cat($file, $category, $rate, $msg_per_call) {
+
+  $send_interval = $msg_per_call/$rate;
+
+  $scribe_client = create_scribe_client();
+
+  $lines = file($file);
+
+  $messages = array();
+  $msgs_since_send = 0;
+  $last_send_time = microtime(true);
+
+  foreach ($lines as $line_num => $line) {
+    $entry = new LogEntry;
+    $entry->category = $category;
+    $entry->message = $line;
+    $messages []= $entry;
+    ++$msgs_since_send;
+
+    if ($msgs_since_send >= $msg_per_call) {
+
+      $msgs_since_send = 0;
+      $ret = scribe_Log_test($messages, $scribe_client);
+      // Print_r($messages);
+      $messages = array();
+
+      $now = microtime(true);
+      $wait = $last_send_time + $send_interval - $now;
+      $last_send_time = $now;
+      if ($wait > 0) {
+        usleep($wait * 1000000);
+      }
+    }
+  }
+  $ret = scribe_Log_test($messages, $scribe_client);
+  // Print_r($messages);
+}
+
+
+/* Send a total of $total messages at the rate of $rate per second
+ * let messages have an avg_size of $avg_size
+ *
+ */
 function stress_test($category, $client_name, $rate, $total, $msg_per_call,
                      $avg_size, $num_categories) {
 
