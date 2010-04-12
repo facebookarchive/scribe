@@ -29,7 +29,6 @@
 
 typedef std::vector<boost::shared_ptr<StoreQueue> > store_list_t;
 typedef std::map<std::string, boost::shared_ptr<store_list_t> > category_map_t;
-typedef std::map<std::string, boost::shared_ptr<StoreQueue> > category_prefix_map_t;
 
 class scribeHandler : virtual public scribe::thrift::scribeIf,
                               public facebook::fb303::FacebookBase {
@@ -71,15 +70,10 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   // Each of these entries is a map of type->StoreQueue.
   // The StoreQueue contains a store, which could contain additional stores.
   category_map_t* pcategories;
-  category_prefix_map_t* pcategory_prefixes;
+  category_map_t* pcategory_prefixes;
 
-  // the default store
-  boost::shared_ptr<StoreQueue> defaultStore;
-
-  // temp versions of the above 3 pointers to use during initialization
-  category_map_t* pnew_categories;
-  category_prefix_map_t* pnew_category_prefixes;
-  boost::shared_ptr<StoreQueue> tmpDefault;
+  // the default stores
+  store_list_t defaultStores;
 
   std::string configFilename;
   facebook::fb303::fb_status status;

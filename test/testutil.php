@@ -143,14 +143,19 @@ function resultChecker($path, $fileprefix, $clientname) {
 
     // For each file that matches the prefix, call resultFileChecker
     // to count the matching lines
+    $files = array();
     if ($dir = opendir($path)) {
       while (false !== ($file = readdir($dir))) {
         if (0 === strncmp($file, $fileprefix, strlen($fileprefix))) {
+          $files[] = $file;
+        }
+      }
+      sort($files);
+      foreach ($files as $file) {
           $filename = "$path/$file";
           $tmp_results = resultFileChecker($filename, $clientname, $last_entry);
           $results["count"] += $tmp_results["count"];
           $results["out_of_order"] += $tmp_results["out_of_order"];
-        }
       }
     } else {
       print("ERROR: could not open directory: $path \n");
