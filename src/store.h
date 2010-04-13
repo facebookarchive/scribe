@@ -332,7 +332,6 @@ class BufferStore : public Store {
   time_t retryInterval;           // the current retry interval in seconds
   unsigned long numContSuccess;   // number of continuous successful sends
   buffer_state_t state;
-  time_t lastWriteTime;
   time_t lastOpenAttempt;
 
   bool flushStreaming;            // When flushStreaming is set to true,

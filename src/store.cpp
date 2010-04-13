@@ -1204,7 +1204,7 @@ BufferStore::BufferStore(StoreQueue* storeq,
     flushStreaming(false),
     maxByPassRatio(DEFAULT_BUFFERSTORE_BYPASS_MAXQSIZE_RATIO) {
 
-  lastWriteTime = lastOpenAttempt = time(NULL);
+    lastOpenAttempt = time(NULL);
 
   // we can't open the client conection until we get configured
 }
@@ -1398,7 +1398,6 @@ shared_ptr<Store> BufferStore::copy(const std::string &category) {
 }
 
 bool BufferStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
-  lastWriteTime = time(NULL);
 
   if (state == STREAMING || (flushStreaming && state == SENDING_BUFFER)) {
     if (primaryStore->handleMessages(messages)) {
@@ -1519,7 +1518,6 @@ void BufferStore::periodicCheck() {
       // Reads come complete buffered file
       // this file size is controlled by max_size in the configuration
       if (secondaryStore->readOldest(messages, &nowinfo)) {
-        lastWriteTime = time(NULL);
 
         unsigned long size = messages->size();
         if (size) {
