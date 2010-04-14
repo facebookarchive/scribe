@@ -146,7 +146,7 @@ int main(int argc, char **argv) {
 
     server.serve();
 
-  } catch(std::exception const& e) {
+  } catch(const std::exception& e) {
     LOG_OPER("Exception in main: %s", e.what());
   }
 
@@ -283,7 +283,7 @@ bool scribeHandler::createCategoryFromModel(
       return false;
     }
 
-  } catch(std::exception const& e) {
+  } catch(const std::exception& e) {
     LOG_OPER("Category not a valid boost filename.  Boost exception:%s", e.what());
     return false;
   }
@@ -662,7 +662,7 @@ void scribeHandler::initialize() {
           perfect_config = false;
         }
     }
-  } catch(std::exception const& e) {
+  } catch(const std::exception& e) {
     string errormsg("Bad config - exception: ");
     errormsg += e.what();
     setStatusDetails(errormsg);

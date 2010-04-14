@@ -227,11 +227,11 @@ bool scribeConn::open() {
     if (serviceBased) {
       remoteHost = socket->getPeerHost();
     }
-  } catch (TTransportException& ttx) {
+  } catch (const TTransportException& ttx) {
     LOG_OPER("failed to open connection to remote scribe server %s thrift error <%s>",
              connectionString().c_str(), ttx.what());
     return false;
-  } catch (std::exception& stx) {
+  } catch (const std::exception& stx) {
     LOG_OPER("failed to open connection to remote scribe server %s std error <%s>",
              connectionString().c_str(), stx.what());
     return false;
@@ -244,7 +244,7 @@ bool scribeConn::open() {
 void scribeConn::close() {
   try {
     framedTransport->close();
-  } catch (TTransportException& ttx) {
+  } catch (const TTransportException& ttx) {
     LOG_OPER("error <%s> while closing connection to remote scribe server %s",
              ttx.what(), connectionString().c_str());
   }
@@ -284,7 +284,7 @@ bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
       LOG_OPER("Failed to send <%d> messages, remote scribe server %s returned error code <%d>",
           size, connectionString().c_str(), (int) result);
     }
-  } catch (TTransportException& ttx) {
+  } catch (const TTransportException& ttx) {
     LOG_OPER("Failed to send <%d> messages to remote scribe server %s error <%s>",
         size, connectionString().c_str(),
         ttx.what());

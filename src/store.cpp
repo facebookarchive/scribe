@@ -704,7 +704,7 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
       setStatus("");
     }
 
-  } catch(std::exception const& e) {
+  } catch(const std::exception& e) {
     LOG_OPER("[%s] Failed to create/open file of type <%s> for writing",
              categoryHandled.c_str(), fsType.c_str());
     LOG_OPER("Exception: %s", e.what());
@@ -853,7 +853,7 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
         write_file = writeFile;
       }
     }
-  } catch (std::exception const& e) {
+  } catch (const std::exception& e) {
     LOG_OPER("[%s] File store failed to write. Exception: %s",
              categoryHandled.c_str(), e.what());
     success = false;
@@ -1038,7 +1038,7 @@ bool ThriftFileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messag
       currentSize += length;
       ++eventsWritten;
       ++messages_handled;
-    } catch (TException te) {
+    } catch (const TException& te) {
       LOG_OPER("[%s] Thrift file store failed to write to file: %s\n", categoryHandled.c_str(), te.what());
       setStatus("File write error");
 
@@ -1157,7 +1157,7 @@ bool ThriftFileStore::openInternal(bool incrementFilename, struct tm* current_ti
     currentFilename = filename;
     eventsWritten = 0;
     setStatus("");
-  } catch (TException te) {
+  } catch (const TException& te) {
     LOG_OPER("[%s] Failed to open file <%s> for writing: %s\n",
         categoryHandled.c_str(), filename.c_str(), te.what());
     setStatus("File open error");
@@ -1178,7 +1178,7 @@ bool ThriftFileStore::openInternal(bool incrementFilename, struct tm* current_ti
 bool ThriftFileStore::createFileDirectory () {
   try {
     boost::filesystem::create_directories(filePath);
-  }catch(std::exception const& e) {
+  } catch(const std::exception& e) {
     LOG_OPER("Exception < %s > in ThriftFileStore::createFileDirectory for path %s",
       e.what(),filePath.c_str());
     return false;
