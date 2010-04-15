@@ -69,8 +69,8 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   // This map has an entry for each configured category.
   // Each of these entries is a map of type->StoreQueue.
   // The StoreQueue contains a store, which could contain additional stores.
-  category_map_t* pcategories;
-  category_map_t* pcategory_prefixes;
+  category_map_t categories;
+  category_map_t category_prefixes;
 
   // the default stores
   store_list_t defaultStores;
@@ -98,7 +98,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
 
  protected:
   bool throttleDeny(int num_messages); // returns true if overloaded
-  void deleteCategoryMap(category_map_t *pcats);
+  void deleteCategoryMap(category_map_t& cats);
   const char* statusAsString(facebook::fb303::fb_status new_status);
   bool createCategoryFromModel(const std::string &category,
                                const boost::shared_ptr<StoreQueue> &model);

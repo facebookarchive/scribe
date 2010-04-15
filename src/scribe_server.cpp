@@ -159,8 +159,6 @@ scribeHandler::scribeHandler(unsigned long int server_port, const std::string& c
     port(server_port),
     numThriftServerThreads(DEFAULT_SERVER_THREADS),
     checkPeriod(DEFAULT_CHECK_PERIOD),
-    pcategories(NULL),
-    pcategory_prefixes(NULL),
     configFilename(config_file),
     status(STARTING),
     statusDetails("initial state"),
@@ -173,10 +171,8 @@ scribeHandler::scribeHandler(unsigned long int server_port, const std::string& c
 }
 
 scribeHandler::~scribeHandler() {
-  deleteCategoryMap(pcategories);
-  pcategories = NULL;
-  deleteCategoryMap(pcategory_prefixes);
-  pcategory_prefixes = NULL;
+  deleteCategoryMap(categories);
+  deleteCategoryMap(category_prefixes);
 }
 
 // Returns the handler status, but overwrites it with WARNING if it's
@@ -186,11 +182,9 @@ fb_status scribeHandler::getStatus() {
   Guard status_monitor(statusLock);
 
   fb_status return_status(status);
-  if (pcategories == NULL) {
-    return_status = WARNING;
-  } else if (status == ALIVE) {
-    for (category_map_t::iterator cat_iter = pcategories->begin();
-        cat_iter != pcategories->end();
+  if (status == ALIVE) {
+    for (category_map_t::iterator cat_iter = categories.begin();
+        cat_iter != categories.end();
         ++cat_iter) {
       for (store_list_t::iterator store_iter = cat_iter->second->begin();
            store_iter != cat_iter->second->end();
@@ -219,20 +213,18 @@ void scribeHandler::getStatusDetails(std::string& _return) {
 
   _return = statusDetails;
   if (_return.empty()) {
-    if (pcategories) {
-      for (category_map_t::iterator cat_iter = pcategories->begin();
-          cat_iter != pcategories->end();
-          ++cat_iter) {
-        for (store_list_t::iterator store_iter = cat_iter->second->begin();
-            store_iter != cat_iter->second->end();
-            ++store_iter) {
+    for (category_map_t::iterator cat_iter = categories.begin();
+        cat_iter != categories.end();
+        ++cat_iter) {
+      for (store_list_t::iterator store_iter = cat_iter->second->begin();
+          store_iter != cat_iter->second->end();
+          ++store_iter) {
 
-          if (!(_return = (*store_iter)->getStatus()).empty()) {
-            return;
-          }
-        } // for each store
-      } // for each category
-    }
+        if (!(_return = (*store_iter)->getStatus()).empty()) {
+          return;
+        }
+      } // for each store
+    } // for each category
   } // if we don't have an interesting top level status
   return;
 }
@@ -301,10 +293,10 @@ bool scribeHandler::createCategoryFromModel(
   }
 
   shared_ptr<store_list_t> pstores;
-  category_map_t::iterator cat_iter = pcategories->find(category);
-  if (cat_iter == pcategories->end()) {
+  category_map_t::iterator cat_iter = categories.find(category);
+  if (cat_iter == categories.end()) {
     pstores = shared_ptr<store_list_t>(new store_list_t);
-    (*pcategories)[category] = pstores;
+    categories[category] = pstores;
   } else {
     pstores = cat_iter->second;
   }
@@ -322,13 +314,6 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
     return true;
   }
 
-  if (!pcategories || !pcategory_prefixes) {
-    // don't bother to spam anything for this, our status should already
-    // be showing up as WARNING in the monitoring tools.
-    incCounter("invalid requests");
-    return true;
-  }
-
   // Throttle based on store queues getting too long.
   // Note that there's one decision for all categories, because the whole array passed to us
   // must either succeed or fail together. Checking before we've queued anything also has
@@ -338,8 +323,8 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   // This is a simplification based on the assumption that most Log() calls contain most
   // categories.
   unsigned long long max_count = 0;
-  for (category_map_t::iterator cat_iter = pcategories->begin();
-       cat_iter != pcategories->end();
+  for (category_map_t::iterator cat_iter = categories.begin();
+       cat_iter != categories.end();
        ++cat_iter) {
     shared_ptr<store_list_t> pstores = cat_iter->second;
     if (!pstores) {
@@ -370,8 +355,8 @@ shared_ptr<store_list_t> scribeHandler::createNewCategory(
   shared_ptr<store_list_t> store_list;
 
   // First, check the list of category prefixes for a model
-  category_map_t::iterator cat_prefix_iter = pcategory_prefixes->begin();
-  while (cat_prefix_iter != pcategory_prefixes->end()) {
+  category_map_t::iterator cat_prefix_iter = category_prefixes.begin();
+  while (cat_prefix_iter != category_prefixes.end()) {
     string::size_type len = cat_prefix_iter->first.size();
     if (cat_prefix_iter->first.compare(0, len-1, category, 0, len-1) == 0) {
       // Found a matching prefix model
@@ -381,9 +366,9 @@ shared_ptr<store_list_t> scribeHandler::createNewCategory(
           store_iter != pstores->end(); ++store_iter) {
         createCategoryFromModel(category, *store_iter);
       }
-      category_map_t::iterator cat_iter = pcategories->find(category);
+      category_map_t::iterator cat_iter = categories.find(category);
 
-      if (cat_iter != pcategories->end()) {
+      if (cat_iter != categories.end()) {
         store_list = cat_iter->second;
       } else {
         LOG_OPER("failed to create new prefix store for category <%s>",
@@ -402,8 +387,8 @@ shared_ptr<store_list_t> scribeHandler::createNewCategory(
         store_iter != defaultStores.end(); ++store_iter) {
       createCategoryFromModel(category, *store_iter);
     }
-    category_map_t::iterator cat_iter = pcategories->find(category);
-    if (cat_iter != pcategories->end()) {
+    category_map_t::iterator cat_iter = categories.find(category);
+    if (cat_iter != categories.end()) {
       store_list = cat_iter->second;
     } else {
       LOG_OPER("failed to create new default store for category <%s>",
@@ -466,8 +451,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
 
     category_map_t::iterator cat_iter;
     // First look for an exact match of the category
-    if (pcategories && ((cat_iter = pcategories->find(category)) !=
-        pcategories->end())) {
+    if ((cat_iter = categories.find(category)) != categories.end()) {
       store_list = cat_iter->second;
     }
 
@@ -477,8 +461,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
       scribeHandlerLock.release();
       scribeHandlerLock.acquireWrite();
 
-      if (pcategories && ((cat_iter = pcategories->find(category)) !=
-          pcategories->end())) {
+      if ((cat_iter = categories.find(category)) != categories.end()) {
         store_list = cat_iter->second;
       } else {
         store_list = createNewCategory(category);
@@ -541,10 +524,8 @@ void scribeHandler::stopStores() {
 
   // Thrift doesn't currently support stopping the server from the handler,
   // so this could leave clients in weird states.
-  deleteCategoryMap(pcategories);
-  pcategories = NULL;
-  deleteCategoryMap(pcategory_prefixes);
-  pcategory_prefixes = NULL;
+  deleteCategoryMap(categories);
+  deleteCategoryMap(category_prefixes);
 }
 
 void scribeHandler::shutdown() {
@@ -631,20 +612,8 @@ void scribeHandler::initialize() {
     }
 
     defaultStores.clear();
-    if (pcategories) {
-      deleteCategoryMap(pcategories);
-    }
-    pcategories = new category_map_t;
-    if (pcategories == NULL) {
-      throw runtime_error("Could not alloc pcategories");
-    }
-    if (pcategory_prefixes) {
-      deleteCategoryMap(pcategory_prefixes);
-    }
-    pcategory_prefixes = new category_map_t;
-    if (pcategory_prefixes == NULL) {
-      throw runtime_error("Could not alloc pcategory_prefixes");
-    }
+    deleteCategoryMap(categories);
+    deleteCategoryMap(category_prefixes);
 
     // Build a new map of stores, and move stores from the old map as
     // we find them in the config file. Any stores left in the old map
@@ -681,10 +650,8 @@ void scribeHandler::initialize() {
   if (!enough_config_to_run) {
     // If the new configuration failed we'll run with
     // nothing configured and status set to WARNING
-    deleteCategoryMap(pcategories);
-    pcategories = NULL;
-    deleteCategoryMap(pcategory_prefixes);
-    pcategory_prefixes = NULL;
+    deleteCategoryMap(categories);
+    deleteCategoryMap(category_prefixes);
   }
 
 
@@ -873,23 +840,23 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
     defaultStores.push_back(pstore);
   } else if (is_prefix_category) {
     shared_ptr<store_list_t> pstores;
-    category_map_t::iterator category_iter = pcategory_prefixes->find(category);
-    if (category_iter != pcategory_prefixes->end()) {
+    category_map_t::iterator category_iter = category_prefixes.find(category);
+    if (category_iter != category_prefixes.end()) {
       pstores = category_iter->second;
     } else {
       pstores = shared_ptr<store_list_t>(new store_list_t);
-      (*pcategory_prefixes)[category] = pstores;
+      category_prefixes[category] = pstores;
     }
     pstores->push_back(pstore);
   } else if (!pstore->isModelStore() && !category_list) {
     // push the new store onto the new map if it's not just a model
     shared_ptr<store_list_t> pstores;
-    category_map_t::iterator category_iter = pcategories->find(category);
-    if (category_iter != pcategories->end()) {
+    category_map_t::iterator category_iter = categories.find(category);
+    if (category_iter != categories.end()) {
       pstores = category_iter->second;
     } else {
       pstores = shared_ptr<store_list_t>(new store_list_t);
-      (*pcategories)[category] = pstores;
+      categories[category] = pstores;
     }
     pstores->push_back(pstore);
   }
@@ -898,23 +865,22 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
 }
 
 
-// delete pcats and everything it contains
-void scribeHandler::deleteCategoryMap(category_map_t *pcats) {
-  if (!pcats) {
-    return;
-  }
-  for (category_map_t::iterator cat_iter = pcats->begin();
-       cat_iter != pcats->end();
+// delete everything in cats
+void scribeHandler::deleteCategoryMap(category_map_t& cats) {
+  for (category_map_t::iterator cat_iter = cats.begin();
+       cat_iter != cats.end();
        ++cat_iter) {
     shared_ptr<store_list_t> pstores = cat_iter->second;
     if (!pstores) {
-      throw std::logic_error("deleteCategoryMap: iterator in category map holds null pointer");
+      throw std::logic_error("deleteCategoryMap: "
+          "iterator in category map holds null pointer");
     }
     for (store_list_t::iterator store_iter = pstores->begin();
          store_iter != pstores->end();
          ++store_iter) {
       if (!*store_iter) {
-        throw std::logic_error("deleteCategoryMap: iterator in store map holds null pointer");
+        throw std::logic_error("deleteCategoryMap: "
+	    "iterator in store map holds null pointer");
       }
 
       if (!(*store_iter)->isModelStore()) {
@@ -923,6 +889,5 @@ void scribeHandler::deleteCategoryMap(category_map_t *pcats) {
     } // for each store
     pstores->clear();
   } // for each category
-  pcats->clear();
-  delete pcats;
+  cats.clear();
 }
