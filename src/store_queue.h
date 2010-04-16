@@ -63,7 +63,9 @@ class StoreQueue {
 
   // WARNING: don't expect this to be exact, because it could change after you check.
   //          This is only for hueristics to decide when we're overloaded.
-  unsigned long long getSize(bool lock = true);
+  inline unsigned long long getSize() {
+    return msgQueueSize;
+  }
  private:
   void storeInitCommon();
   void configureInline(pStoreConf configuration);

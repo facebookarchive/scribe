@@ -88,20 +88,6 @@ StoreQueue::~StoreQueue() {
   }
 }
 
-// WARNING: the number could change after you check this, so don't
-// expect it to be exact. Use for hueristics ONLY.
-unsigned long long StoreQueue::getSize(bool lock) {
-  unsigned long long retval;
-  if (lock) {
-    pthread_mutex_lock(&msgMutex);
-  }
-  retval = msgQueueSize;
-  if (lock) {
-    pthread_mutex_unlock(&msgMutex);
-  }
-  return retval;
-}
-
 void StoreQueue::addMessage(boost::shared_ptr<LogEntry> entry) {
   if (isModel) {
     LOG_OPER("ERROR: called addMessage on model store");

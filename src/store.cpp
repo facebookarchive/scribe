@@ -1500,10 +1500,12 @@ void BufferStore::periodicCheck() {
     // if queue size is getting large return so that there is time to forward
     // incoming messages directly to the primary store without buffering to
     // secondary store.
-    uint64_t qsize = storeQueue->getSize(false);
-    if (flushStreaming && qsize >=
-          maxByPassRatio * g_Handler->getMaxQueueSize()) {
-      return;
+    if (flushStreaming) {
+      uint64_t qsize = storeQueue->getSize();
+      if(qsize >=
+         maxByPassRatio * g_Handler->getMaxQueueSize()) {
+        return;
+      }
     }
 
     // Read a group of messages from the secondary store and send them to
