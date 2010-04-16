@@ -252,9 +252,6 @@ void scribeConn::close() {
 
 bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
   int size = messages->size();
-  if (size <= 0) {
-    return true;
-  }
   if (!isOpen()) {
     if (!open()) {
       return false;

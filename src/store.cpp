@@ -49,6 +49,9 @@ using namespace scribe::thrift;
 #define DEFAULT_NETWORKSTORE_CACHE_TIMEOUT        300
 #define DEFAULT_BUFFERSTORE_BYPASS_MAXQSIZE_RATIO 0.75
 
+// magic threshold
+#define DEFAULT_NETWORKSTORE_DUMMY_THRESHOLD      4096
+
 // Parameters for adaptive_backoff
 #define DEFAULT_MIN_RETRY                         5
 #define DEFAULT_MAX_RETRY                         300
@@ -57,9 +60,25 @@ using namespace scribe::thrift;
 #define ADD_DEC_FACTOR                            2
 #define CONT_SUCCESS_THRESHOLD                    1
 
+
+
 ConnPool g_connPool;
 
 const string meta_logfile_prefix = "scribe_meta<new_logfile>: ";
+
+// Checks if we should try sending a dummy Log in the n/w store
+bool shouldSendDummy(boost::shared_ptr<logentry_vector_t> messages) {
+  size_t size = 0;
+  for (logentry_vector_t::iterator iter = messages->begin();
+      iter != messages->end(); ++iter) {
+    size += (**iter).message.size();
+    if (size > DEFAULT_NETWORKSTORE_DUMMY_THRESHOLD) {
+      return true;
+    }
+  }
+  return false;
+}
+
 
 boost::shared_ptr<Store>
 Store::createStore(StoreQueue* storeq, const string& type,
@@ -1826,18 +1845,42 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
   return copied;
 }
 
+
+// If the size of messages is greater than a threshold
+// first try sending an empty vector to catch dfqs
 bool NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   if (!isOpen()) {
     LOG_OPER("[%s] Logic error: NetworkStore::handleMessages called on closed store", categoryHandled.c_str());
     return false;
-  } else if (useConnPool) {
+    }
+  }
+
+  bool tryDummySend = shouldSendDummy(messages);
+  boost::shared_ptr<logentry_vector_t> dummymessages(new logentry_vector_t);
+
+  if (useConnPool) {
     if (serviceBased) {
+      if (tryDummySend) {
+        if (!(g_connPool.send(serviceName, dummymessages))) {
+          return false;
+        }
+      }
       return g_connPool.send(serviceName, messages);
     } else {
+      if (tryDummySend) {
+        if (!(g_connPool.send(remoteHost, remotePort, dummymessages))) {
+          return false;
+        }
+      }
       return g_connPool.send(remoteHost, remotePort, messages);
     }
   } else {
     if (unpooledConn) {
+      if (tryDummySend) {
+        if (!(unpooledConn->send(dummymessages))) {
+          return false;
+        }
+      }
       return unpooledConn->send(messages);
     } else {
       LOG_OPER("[%s] Logic error: NetworkStore::handleMessages unpooledConn is NULL", categoryHandled.c_str());
