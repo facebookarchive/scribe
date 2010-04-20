@@ -835,6 +835,9 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
     pstore->open();
   }
 
+  if (category_list) {
+    return (pstore);
+  }
   if (is_default) {
     LOG_OPER("Creating default store");
     defaultStores.push_back(pstore);
@@ -848,7 +851,7 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
       category_prefixes[category] = pstores;
     }
     pstores->push_back(pstore);
-  } else if (!pstore->isModelStore() && !category_list) {
+  } else if (!pstore->isModelStore()) {
     // push the new store onto the new map if it's not just a model
     shared_ptr<store_list_t> pstores;
     category_map_t::iterator category_iter = categories.find(category);
