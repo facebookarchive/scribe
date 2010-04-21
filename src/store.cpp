@@ -1743,6 +1743,12 @@ void NetworkStore::configure(pStoreConf configuration) {
 }
 
 bool NetworkStore::open() {
+  if (isOpen()) {
+    /* re-opening an already open NetworkStore can be bad. For example,
+     * it can lead to bad reference counting on g_connpool connections
+     */
+    return (true);
+  }
   if (serviceBased) {
     bool success = true;
     time_t now = time(NULL);
@@ -1765,37 +1771,38 @@ bool NetworkStore::open() {
     if (useConnPool) {
       opened = g_connPool.open(serviceName, servers, static_cast<int>(timeout));
     } else {
-      // only open unpooled connection if not already open
-      if (unpooledConn == NULL) {
-        unpooledConn = shared_ptr<scribeConn>(new scribeConn(serviceName, servers, static_cast<int>(timeout)));
-        opened = unpooledConn->open();
-      } else {
-        opened = unpooledConn->isOpen();
-        if (!opened) {
-          opened = unpooledConn->open();
-        }
+      if (unpooledConn != NULL) {
+        LOG_OPER("Logic error: NetworkStore::open unpooledConn is not NULL"
+	    " service = %s", serviceName.c_str());
+      }
+      unpooledConn = shared_ptr<scribeConn>(new scribeConn(serviceName,
+          servers, static_cast<int>(timeout)));
+      opened = unpooledConn->open();
+      if (!opened) {
+        unpooledConn.reset();
       }
     }
 
-  } else if (remotePort <= 0 ||
-             remoteHost.empty()) {
-    LOG_OPER("[%s] Bad config - won't attempt to connect to <%s:%lu>", categoryHandled.c_str(), remoteHost.c_str(), remotePort);
+  } else if (remotePort <= 0 || remoteHost.empty()) {
+    LOG_OPER("[%s] Bad config - won't attempt to connect to <%s:%lu>",
+        categoryHandled.c_str(), remoteHost.c_str(), remotePort);
     setStatus("Bad config - invalid location for remote server");
     return false;
-
   } else {
     if (useConnPool) {
-      opened = g_connPool.open(remoteHost, remotePort, static_cast<int>(timeout));
+      opened = g_connPool.open(remoteHost, remotePort,
+          static_cast<int>(timeout));
     } else {
       // only open unpooled connection if not already open
-      if (unpooledConn == NULL) {
-        unpooledConn = shared_ptr<scribeConn>(new scribeConn(remoteHost, remotePort, static_cast<int>(timeout)));
-        opened = unpooledConn->open();
-      } else {
-        opened = unpooledConn->isOpen();
-        if (!opened) {
-          opened = unpooledConn->open();
-        }
+      if (unpooledConn != NULL) {
+        LOG_OPER("Logic error: NetworkStore::open unpooledConn is not NULL"
+            " %s:%lu", remoteHost.c_str(), remotePort);
+      }
+      unpooledConn = shared_ptr<scribeConn>(new scribeConn(remoteHost,
+          remotePort, static_cast<int>(timeout)));
+      opened = unpooledConn->open();
+      if (!opened) {
+        unpooledConn.reset();
       }
     }
   }
@@ -1824,6 +1831,7 @@ void NetworkStore::close() {
     if (unpooledConn != NULL) {
       unpooledConn->close();
     }
+    unpooledConn.reset();
   }
 }
 
@@ -1848,7 +1856,8 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
 
 // If the size of messages is greater than a threshold
 // first try sending an empty vector to catch dfqs
-bool NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
+bool
+NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   if (!isOpen()) {
     LOG_OPER("[%s] Logic error: NetworkStore::handleMessages called on closed store", categoryHandled.c_str());
     return false;
@@ -1860,33 +1869,44 @@ bool NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages)
 
   if (useConnPool) {
     if (serviceBased) {
-      if (tryDummySend) {
-        if (!(g_connPool.send(serviceName, dummymessages))) {
-          return false;
+      if (!tryDummySend || g_connPool.send(serviceName, dummymessages)) {
+        if (g_connPool.send(serviceName, messages)) {
+          return (true);
         }
       }
-      return g_connPool.send(serviceName, messages);
-    } else {
-      if (tryDummySend) {
-        if (!(g_connPool.send(remoteHost, remotePort, dummymessages))) {
-          return false;
-        }
-      }
-      return g_connPool.send(remoteHost, remotePort, messages);
+      /*
+       * let us force reopen the store on the next try. on the next
+       * open the serverlist might get updated. we might get a
+       * connection to a new server.
+       */
+      close();
+      return (false);
     }
-  } else {
-    if (unpooledConn) {
-      if (tryDummySend) {
-        if (!(unpooledConn->send(dummymessages))) {
-          return false;
-        }
+    if (!tryDummySend ||
+        g_connPool.send(remoteHost, remotePort, dummymessages)) {
+      return(g_connPool.send(remoteHost, remotePort, messages));
+    }
+    return (false);
+  }
+  if (unpooledConn) {
+    if (!tryDummySend || unpooledConn->send(dummymessages)) {
+      if (unpooledConn->send(messages)) {
+        return (true);
       }
       return unpooledConn->send(messages);
     } else {
       LOG_OPER("[%s] Logic error: NetworkStore::handleMessages unpooledConn is NULL", categoryHandled.c_str());
       return false;
     }
+    if (serviceBased) {
+      // force reopen the store, try new service definitions
+      close();
+    }
+    return (false);
   }
+  LOG_OPER("[%s] Logic error: NetworkStore::handleMessages unpooledConn "
+      "is NULL", categoryHandled.c_str());
+  return (false);
 }
 
 void NetworkStore::flush() {

@@ -33,6 +33,7 @@ class scribeConn {
   void addRef();
   void releaseRef();
   unsigned getRef();
+  void setRef(unsigned);
 
   void lock();
   void unlock();
