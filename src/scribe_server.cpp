@@ -522,6 +522,14 @@ bool scribeHandler::throttleDeny(int num_messages) {
 void scribeHandler::stopStores() {
   setStatus(STOPPING);
 
+  shared_ptr<store_list_t> store_list;
+  for (store_list_t::iterator store_iter = defaultStores.begin();
+      store_iter != defaultStores.end(); ++store_iter) {
+    if (!(*store_iter)->isModelStore()) {
+      (*store_iter)->stop();
+    }
+  }
+  defaultStores.clear();
   // Thrift doesn't currently support stopping the server from the handler,
   // so this could leave clients in weird states.
   deleteCategoryMap(categories);
@@ -611,9 +619,6 @@ void scribeHandler::initialize() {
       }
     }
 
-    defaultStores.clear();
-    deleteCategoryMap(categories);
-    deleteCategoryMap(category_prefixes);
 
     // Build a new map of stores, and move stores from the old map as
     // we find them in the config file. Any stores left in the old map
