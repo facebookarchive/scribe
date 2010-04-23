@@ -571,7 +571,7 @@ void scribeHandler::initialize() {
     // which is very handy for testing and one-off applications.
     // Otherwise we'll try to get it from the service management console and
     // fall back to a default file location. This is for production.
-    StoreConf config;
+    StoreConf localconfig;
     string config_file;
 
     if (configFilename.empty()) {
@@ -579,7 +579,9 @@ void scribeHandler::initialize() {
     } else {
       config_file = configFilename;
     }
-    config.parseConfig(config_file);
+    localconfig.parseConfig(config_file);
+    // overwrite the current StoreConf
+    config = localconfig;
 
     // load the global config
     config.getUnsigned("max_msg_per_second", maxMsgPerSecond);

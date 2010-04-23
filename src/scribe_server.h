@@ -58,6 +58,11 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   inline unsigned long long getMaxQueueSize() {
     return maxQueueSize;
   }
+
+  inline const StoreConf& getConfig() const {
+    return config;
+  }
+
   void incCounter(std::string category, std::string counter);
   void incCounter(std::string category, std::string counter, long amount);
   void incCounter(std::string counter);
@@ -83,6 +88,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   unsigned long numMsgLastSecond;
   unsigned long maxMsgPerSecond;
   unsigned long long maxQueueSize;
+  StoreConf config;
   bool newThreadPerCategory;
 
   /* mutex to syncronize access to scribeHandler.

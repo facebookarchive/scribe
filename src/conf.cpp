@@ -17,12 +17,17 @@
 //
 // @author Bobby Johnson
 // @author Jason Sobel
+// @author John Song
 
+#include <boost/algorithm/string.hpp>
 #include "common.h"
 #include "conf.h"
+#include "scribe_server.h"
 
 using namespace boost;
 using namespace std;
+
+extern shared_ptr<scribeHandler> g_Handler;
 
 StoreConf::StoreConf() {
 }
@@ -30,7 +35,7 @@ StoreConf::StoreConf() {
 StoreConf::~StoreConf() {
 }
 
-bool StoreConf::getStore(const std::string& storeName, pStoreConf& _return) {
+bool StoreConf::getStore(const string& storeName, pStoreConf& _return) {
   store_conf_map_t::iterator iter = stores.find(storeName);
   if (iter != stores.end()) {
     _return = iter->second;
@@ -40,13 +45,17 @@ bool StoreConf::getStore(const std::string& storeName, pStoreConf& _return) {
   }
 }
 
-void StoreConf::getAllStores(std::vector<pStoreConf>& _return) {
+void StoreConf::setParent(pStoreConf pParent) {
+  parent = pParent;
+}
+
+void StoreConf::getAllStores(vector<pStoreConf>& _return) {
   for (store_conf_map_t::iterator iter = stores.begin(); iter != stores.end(); ++iter) {
     _return.push_back(iter->second);
   }
 }
 
-bool StoreConf::getInt(const std::string& intName, long int& _return) {
+bool StoreConf::getInt(const string& intName, long int& _return) const {
   string str;
   if (getString(intName, str)) {
     _return = strtol(str.c_str(), NULL, 0);
@@ -56,7 +65,8 @@ bool StoreConf::getInt(const std::string& intName, long int& _return) {
   }
 }
 
-bool StoreConf::getUnsigned(const std::string& intName, unsigned long int& _return) {
+bool StoreConf::getUnsigned(const string& intName,
+                            unsigned long int& _return) const {
   string str;
   if (getString(intName, str)) {
     _return = strtoul(str.c_str(), NULL, 0);
@@ -66,7 +76,8 @@ bool StoreConf::getUnsigned(const std::string& intName, unsigned long int& _retu
   }
 }
 
-bool StoreConf::getUnsignedLongLong(const std::string& llName, unsigned long long& _return) {
+bool StoreConf::getUnsignedLongLong(const string& llName,
+                                    unsigned long long& _return) const {
   string str;
   if (getString(llName, str)) {
     _return = strtoull(str.c_str(), NULL, 10);
@@ -76,43 +87,88 @@ bool StoreConf::getUnsignedLongLong(const std::string& llName, unsigned long lon
   }
 }
 
-bool StoreConf::getString(const std::string& stringName, std::string& _return) {
-  string_map_t::iterator iter = values.find(stringName);
+bool StoreConf::getString(const string& stringName,
+                          string& _return) const {
+  // allow parameter inheritance, i.e. if a named value is not found in the
+  // current store's configuration, we keep looking up the current StoreConf's
+  // ancestors until it is either found or we hit the root store.
+  // To avoid ambiguity, when searching for named parameter in the ancestor store
+  // we are looking for $type::$stringName where $type is the store type.
+  // check the current store conf
+
+  // first check the current store
+  string_map_t::const_iterator iter = values.find(stringName);
   if (iter != values.end()) {
     _return = iter->second;
     return true;
-  } else {
+  }
+
+  // "category", "categories", "type" parameters can't be inherited
+  string_map_t::const_iterator typeIter = values.find("type");
+  string storeType = typeIter == values.end() ? "" : typeIter->second;
+  if (storeType.empty()
+      || stringName == "type"
+      || stringName == "category"
+      || stringName == "categories") {
     return false;
   }
+
+  // not found
+  bool found = false;
+  string inheritedName = storeType + "::" + stringName;
+  // searching for type::stringName start with the current configuration
+  // this allows a parameter to be used by the current configuration
+  // and descendant stores. E.g.
+  // file::fs_type = std
+  // can be used by this file store and all descendant file stores.
+  for (const StoreConf* pconf = this; pconf;
+        pconf = const_cast<StoreConf*>(pconf->parent.get())) {
+    string_map_t::const_iterator iter = pconf->values.find(inheritedName);
+    if (iter != pconf->values.end()) {
+      _return = iter->second;
+      found = true;
+      break;
+    }
+  }
+  // if we didn't find any.  then try g_Handler's config
+  if (!found) {
+    const StoreConf& gconf = g_Handler->getConfig();
+    string_map_t::const_iterator iter = gconf.values.find(inheritedName);
+    if (iter != gconf.values.end()) {
+      _return = iter->second;
+      found = true;
+    }
+  }
+  return found;
 }
 
-void StoreConf::setString(const std::string& stringName, const std::string& value) {
+void StoreConf::setString(const string& stringName, const string& value) {
   values[stringName] = value;
 }
 
-void StoreConf::setUnsigned(const std::string& stringName, unsigned long value) {
+void StoreConf::setUnsigned(const string& stringName, unsigned long value) {
   ostringstream oss;
   oss << value;
   setString(stringName, oss.str());
 }
 
-void StoreConf::setUnsignedLongLong(const std::string& stringName, unsigned long long value) {
+void StoreConf::setUnsignedLongLong(const string& stringName, unsigned long long value) {
   ostringstream oss;
   oss << value;
   setString(stringName, oss.str());
 }
 
 // reads and parses the config data
-void StoreConf::parseConfig(const std::string& filename) {
+void StoreConf::parseConfig(const string& filename) {
 
   queue<string> config_strings;
 
   if (readConfFile(filename, config_strings)) {
     LOG_OPER("got configuration data from file <%s>", filename.c_str());
   } else {
-    std::ostringstream msg;
+    ostringstream msg;
     msg << "Failed to open config file <" << filename << ">";
-    throw std::runtime_error(msg.str());
+    throw runtime_error(msg.str());
   }
 
   parseStore(config_strings, this);
@@ -164,7 +220,7 @@ bool StoreConf::parseStore(queue<string>& raw_config, /*out*/ StoreConf* parsed_
         if (0 == store_name.compare("store")) {
           // This is a special case for the top-level stores. They share
           // the same name, so we append an index to put them in the map
-          std::ostringstream oss;
+          ostringstream oss;
           oss << store_index;
           store_name += oss.str();
           ++store_index;
@@ -212,18 +268,51 @@ string StoreConf::trimString(const string& str) {
 // reads every line from the file and pushes then onto _return
 // returns false on error
 bool StoreConf::readConfFile(const string& filename, queue<string>& _return) {
-  std::string line;
-  std::ifstream config_file;
+  string line;
+  ifstream config_file;
 
   config_file.open(filename.c_str());
   if (!config_file.good()) {
     return false;
   }
 
-  while (std::getline(config_file, line)) {
+  while (getline(config_file, line)) {
     _return.push(line);
   }
 
   config_file.close();
   return true;
+}
+
+// serialize StoreConf
+ostream& operator<<(ostream& os, const StoreConf& sconf) {
+  return sconf.print(os, 0);
+}
+
+static string indent(uint32_t depth, bool useSpace, uint32_t tabw) {
+  int len = useSpace ? depth * tabw : depth;
+  return string(len, useSpace ? ' ' : '\t');
+}
+
+ostream& StoreConf::print(ostream& os, uint32_t depth,
+                          bool useSpace, uint32_t tabw) const {
+  // we only need to iterator through keys. as map guaranteed keys
+  // are weakly ordered, so we will get consistent output.
+  for (string_map_t::const_iterator iter = values.begin();
+        iter != values.end(); iter++) {
+    int len = useSpace ? depth * tabw : depth;
+    os << indent(depth, useSpace, tabw) << iter->first
+       << "=" << iter->second << endl;
+  }
+  // print out sub stores
+  for (store_conf_map_t::const_iterator iter = stores.begin();
+        iter != stores.end(); iter++) {
+    os << indent(depth, useSpace, tabw) << "<" << iter->first << ">"
+       << endl;
+    iter->second->print(os, depth + 1, useSpace, tabw);
+    os << indent(depth, useSpace, tabw) << "</" << iter->first << ">"
+    << endl;
+  }
+
+  return os;
 }

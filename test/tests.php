@@ -24,6 +24,22 @@ include_once $GLOBALS['THRIFT_ROOT'].'/protocol/TBinaryProtocol.php';
 include_once $GLOBALS['THRIFT_ROOT'].'/transport/TFramedTransport.php';
 include_once $GLOBALS['THRIFT_ROOT'].'/transport/TSocketPool.php';
 
+/**
+ * testing scribe configuration parameter inheritance.
+ */
+function param_test() {
+  $logs = array();
+  $msg = new LogEntry;
+  $msg->category = 'paramtest';
+  $msg->message = "paramtest";
+  $logs []= $msg;
+
+  $scribe_client = create_scribe_client();
+  $ret = scribe_Log_test($logs, $scribe_client);
+
+  print "Log returned: " . $ret . "\n";
+}
+
 function simple_test() {
   $messages = array();
   $msg = new LogEntry;

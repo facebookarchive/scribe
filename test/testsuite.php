@@ -43,6 +43,7 @@ $ALL_TESTS = array(
   'buffertest',
   'buffertest2',
 //  'categoriestest',
+  'paramtest',
 );
 
 $output_file = null;

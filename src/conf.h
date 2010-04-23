@@ -42,8 +42,10 @@ typedef boost::shared_ptr<StoreConf> pStoreConf;
 typedef std::map<std::string, std::string> string_map_t;
 typedef std::map<std::string, pStoreConf> store_conf_map_t;
 
-class StoreConf {
+ostream& operator<<(ostream& os, const StoreConf& storeConf);
 
+class StoreConf {
+ friend ostream& operator<<(ostream& os, const StoreConf& storeConf);
  public:
   StoreConf();
   virtual ~StoreConf();
@@ -53,10 +55,10 @@ class StoreConf {
   // The return parameter is untouched if the key isn't found.
   void getAllStores(std::vector<pStoreConf>& _return);
   bool getStore(const std::string& storeName, pStoreConf& _return);
-  bool getInt(const std::string& intName, long int& _return);
-  bool getUnsigned(const std::string& intName, unsigned long int& _return);
-  bool getUnsignedLongLong(const std::string& intName, unsigned long long& _return);
-  bool getString(const std::string& stringName, std::string& _return);
+  bool getInt(const std::string& intName, long int& _return) const;
+  bool getUnsigned(const std::string& intName, unsigned long int& _return) const;
+  bool getUnsignedLongLong(const std::string& intName, unsigned long long& _return) const;
+  bool getString(const std::string& stringName, std::string& _return) const;
 
   void setString(const std::string& stringName, const std::string& value);
   void setUnsigned(const std::string& intName, unsigned long value);
@@ -64,15 +66,17 @@ class StoreConf {
 
   // Reads configuration from a file and throws an exception if it fails.
   void parseConfig(const std::string& filename);
-
+  void setParent(pStoreConf parent);
  private:
   string_map_t values;
   store_conf_map_t stores;
-
+  pStoreConf parent;
   static bool parseStore(/*in,out*/ std::queue<std::string>& raw_config,
                          /*out*/ StoreConf* parsed_config);
   static std::string trimString(const std::string& str);
   bool readConfFile(const std::string& filename, std::queue<std::string>& _return);
+  ostream& print(ostream& os, uint32_t depth, bool useSpace = true,
+                 uint32_t tabw = 2) const;
 };
 
 #endif //!defined SCRIBE_CONF_H

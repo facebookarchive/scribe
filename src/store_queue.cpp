@@ -347,14 +347,15 @@ void StoreQueue::storeInitCommon() {
 void StoreQueue::configureInline(pStoreConf configuration) {
   // Constructor defaults are fine if these don't exist
   configuration->getUnsignedLongLong("target_write_size", targetWriteSize);
-  configuration->getUnsigned("max_write_interval", (unsigned long&) maxWriteInterval);
+  configuration->getUnsigned("max_write_interval",
+                            (unsigned long&) maxWriteInterval);
 
   string tmp;
   if (configuration->getString("must_succeed", tmp) && tmp == "no") {
     mustSucceed = false;
   }
 
-  store->configure(configuration);
+  store->configure(configuration, pStoreConf());
 }
 
 void StoreQueue::openInline() {

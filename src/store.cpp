@@ -131,6 +131,11 @@ Store::~Store() {
   pthread_mutex_destroy(&statusMutex);
 }
 
+void Store::configure(pStoreConf configuration, pStoreConf parent) {
+  storeConf = configuration;
+  storeConf->setParent(parent);
+}
+
 void Store::setStatus(const std::string& new_status) {
   pthread_mutex_lock(&statusMutex);
   status = new_status;
@@ -203,7 +208,8 @@ FileStoreBase::FileStoreBase(StoreQueue* storeq,
 FileStoreBase::~FileStoreBase() {
 }
 
-void FileStoreBase::configure(pStoreConf configuration) {
+void FileStoreBase::configure(pStoreConf configuration, pStoreConf parent) {
+  Store::configure(configuration, parent);
 
   // We can run using defaults for all of these, but there are
   // a couple of suspicious things we warn about.
@@ -594,8 +600,8 @@ FileStore::FileStore(StoreQueue* storeq,
 FileStore::~FileStore() {
 }
 
-void FileStore::configure(pStoreConf configuration) {
-  FileStoreBase::configure(configuration);
+void FileStore::configure(pStoreConf configuration, pStoreConf parent) {
+  FileStoreBase::configure(configuration, parent);
 
   // We can run using defaults for all of these, but there are
   // a couple of suspicious things we warn about.
@@ -1086,8 +1092,8 @@ bool ThriftFileStore::isOpen() {
   return thriftFileTransport && thriftFileTransport->isOpen();
 }
 
-void ThriftFileStore::configure(pStoreConf configuration) {
-  FileStoreBase::configure(configuration);
+void ThriftFileStore::configure(pStoreConf configuration, pStoreConf parent) {
+  FileStoreBase::configure(configuration, parent);
   configuration->getUnsigned("flush_frequency_ms", flushFrequencyMs);
   configuration->getUnsigned("msg_buffer_size", msgBufferSize);
   configuration->getUnsigned("use_simple_file", useSimpleFile);
@@ -1232,7 +1238,8 @@ BufferStore::~BufferStore() {
 
 }
 
-void BufferStore::configure(pStoreConf configuration) {
+void BufferStore::configure(pStoreConf configuration, pStoreConf parent) {
+  Store::configure(configuration, parent);
 
   // Constructor defaults are fine if these don't exist
   configuration->getUnsigned("buffer_send_rate", (unsigned long&) bufferSendRate);
@@ -1311,7 +1318,7 @@ void BufferStore::configure(pStoreConf configuration) {
       // If replayBuffer is true, then we need to create a readable store
       secondaryStore = createStore(storeQueue, type, categoryHandled,
                                    replayBuffer, multiCategory);
-      secondaryStore->configure(secondary_store_conf);
+      secondaryStore->configure(secondary_store_conf, storeConf);
     }
   }
 
@@ -1335,7 +1342,7 @@ void BufferStore::configure(pStoreConf configuration) {
     } else {
       primaryStore = createStore(storeQueue, type, categoryHandled, false,
                                   multiCategory);
-      primaryStore->configure(primary_store_conf);
+      primaryStore->configure(primary_store_conf, storeConf);
     }
   }
 
@@ -1715,7 +1722,8 @@ NetworkStore::~NetworkStore() {
   close();
 }
 
-void NetworkStore::configure(pStoreConf configuration) {
+void NetworkStore::configure(pStoreConf configuration, pStoreConf parent) {
+  Store::configure(configuration, parent);
   // Error checking is done on open()
   // service takes precedence over host + port
   if (configuration->getString("smc_service", serviceName)) {
@@ -2000,7 +2008,7 @@ void BucketStore::createBucketsFromBucket(pStoreConf configuration,
     }
 
     buckets.push_back(newstore);
-    newstore->configure(bucket_conf);
+    newstore->configure(bucket_conf, storeConf);
   }
 
   return;
@@ -2063,7 +2071,7 @@ void BucketStore::createBuckets(pStoreConf configuration) {
       createStore(storeQueue, type, categoryHandled, false, multiCategory);
 
     buckets.push_back(bucket);
-    bucket->configure(bucket_conf);
+    bucket->configure(bucket_conf, storeConf);
   }
 
   // Check if an extra bucket is defined
@@ -2115,7 +2123,8 @@ handle_error:
    *   </bucket>
    * </store>
    */
-void BucketStore::configure(pStoreConf configuration) {
+void BucketStore::configure(pStoreConf configuration, pStoreConf parent) {
+  Store::configure(configuration, parent);
 
   string error_msg, bucketizer_str, remove_key_str;
   unsigned long delim_long = 0;
@@ -2469,7 +2478,8 @@ bool NullStore::isOpen() {
   return true;
 }
 
-void NullStore::configure(pStoreConf) {
+void NullStore::configure(pStoreConf configuration, pStoreConf parent) {
+  Store::configure(configuration, parent);
 }
 
 void NullStore::close() {
@@ -2551,7 +2561,8 @@ bool MultiStore::isOpen() {
   return (report_success == SUCCESS_ALL) ? all_result : any_result;
 }
 
-void MultiStore::configure(pStoreConf configuration) {
+void MultiStore::configure(pStoreConf configuration, pStoreConf parent) {
+  Store::configure(configuration, parent);
   /**
    * in this store, we look for other numbered stores
    * in the following fashion:
@@ -2616,7 +2627,7 @@ void MultiStore::configure(pStoreConf configuration) {
                                 multiCategory);
         LOG_OPER("[%s] MULTI: Configured store of type %s successfully.",
                  categoryHandled.c_str(), cur_type.c_str());
-        cur_store->configure(cur_conf);
+        cur_store->configure(cur_conf, storeConf);
         stores.push_back(cur_store);
       }
     }
@@ -2719,7 +2730,8 @@ bool CategoryStore::isOpen() {
   return true;
 }
 
-void CategoryStore::configure(pStoreConf configuration) {
+void CategoryStore::configure(pStoreConf configuration, pStoreConf parent) {
+  Store::configure(configuration, parent);
   /**
    *  Parse the store defined and use this store as a model to create a
    *  new store for every new category we see later.
@@ -2748,17 +2760,19 @@ void CategoryStore::configure(pStoreConf configuration) {
       return;
     }
 
-    configureCommon(cur_conf, cur_type);
+    configureCommon(cur_conf, parent, cur_type);
   }
 }
 
 void CategoryStore::configureCommon(pStoreConf configuration,
+                                    pStoreConf parent,
                                     const string type) {
+  Store::configure(configuration, parent);
   // initialize model store
   modelStore = createStore(storeQueue, type, categoryHandled, false, false);
   LOG_OPER("[%s] %s: Configured store of type %s successfully.",
            categoryHandled.c_str(), getType().c_str(), type.c_str());
-  modelStore->configure(configuration);
+  modelStore->configure(configuration, parent);
 }
 
 void CategoryStore::close() {
@@ -2845,8 +2859,8 @@ MultiFileStore::MultiFileStore(StoreQueue* storeq,
 MultiFileStore::~MultiFileStore() {
 }
 
-void MultiFileStore::configure(pStoreConf configuration) {
-  configureCommon(configuration, "file");
+void MultiFileStore::configure(pStoreConf configuration, pStoreConf parent) {
+  configureCommon(configuration, parent, "file");
 }
 
 ThriftMultiFileStore::ThriftMultiFileStore(StoreQueue* storeq,
@@ -2858,6 +2872,6 @@ ThriftMultiFileStore::ThriftMultiFileStore(StoreQueue* storeq,
 ThriftMultiFileStore::~ThriftMultiFileStore() {
 }
 
-void ThriftMultiFileStore::configure(pStoreConf configuration) {
-  configureCommon(configuration, "thriftfile");
+void ThriftMultiFileStore::configure(pStoreConf configuration, pStoreConf parent) {
+  configureCommon(configuration, parent, "thriftfile");
 }
