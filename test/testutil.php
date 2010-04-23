@@ -31,7 +31,7 @@
  */
 function scribe_start($test_name, $scribed_path, $port, $config) {
   $scribed = "$scribed_path/scribed";
-  $command = "$scribed -p $port $config &> scribed.out.$test_name &";
+  $command = "$scribed -p $port $config > scribed.out.$test_name 2>&1 & echo $!";
 
   print("Starting Scribed...\n");
 
@@ -63,14 +63,14 @@ function scribe_stop($scribe_ctrl_path, $port, $pid = 0) {
   $scribe_ctrl = "$scribe_ctrl_path/scribe_ctrl";
   $command = "$scribe_ctrl stop $port ";
 
-  print("Stopping Scribed...\n");
+  print("Stopping Scribed: $command\n");
 
   // send stop command to scribe
   system($command, $error);
+  echo "$command => $error\n";
 
-  if ($error) {
-    print("ERROR: Could not stop scribed.\n");
-    return false;
+  if ($error != 0) {
+    return true;
   }
 
   sleep($wait);
@@ -78,6 +78,7 @@ function scribe_stop($scribe_ctrl_path, $port, $pid = 0) {
   if ($pid) {
     // kill if scribe process has not yet terminated
     system('kill -9 ' . $pid, $success);
+    echo "kill -9 $pid => $success\n";
 
     if ($success) {
       print("ERROR: scribed did not stop after $wait seconds.\n");
