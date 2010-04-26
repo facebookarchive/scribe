@@ -144,6 +144,9 @@ int main(int argc, char **argv) {
       server.setOverloadAction(T_OVERLOAD_CLOSE_ON_ACCEPT);
     }
 
+    // increase the maximum request size that thrift will accept
+    server.setMaxFrameSize(numeric_limits<size_t>::max());
+
     server.serve();
 
   } catch(const std::exception& e) {
