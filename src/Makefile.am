@@ -108,7 +108,7 @@ endif
 # Set up Thrift specific activity here.
 # We assume that a <name>+types.cpp will always be built from <name>.thrift.
 
-$(eval $(call thrift_template,.,$(srcdir)/../if/scribe.thrift, -I $(fb303_home)/share/ --cpp --py --php))
+$(eval $(call thrift_template,.,$(srcdir)/../if/scribe.thrift, -I $(fb303_home)/share/ --cpp --py --php --java))
 
 if FACEBOOK
   $(eval $(call thrift_template,.,$(smc_home)/if/ServiceManager.thrift,--cpp))
