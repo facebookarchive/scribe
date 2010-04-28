@@ -19,6 +19,7 @@
 // @author James Wang
 // @author Jason Sobel
 // @author Anthony Giardullo
+// @author John Song
 
 #ifndef SCRIBE_STORE_QUEUE_H
 #define SCRIBE_STORE_QUEUE_H
@@ -30,6 +31,8 @@
 
 #include "src/gen-cpp/scribe.h"
 #include "store.h"
+
+class Store;
 
 /*
  * This class implements a queue and a thread for dispatching
@@ -60,8 +63,7 @@ class StoreQueue {
 
   // WARNING: don't expect this to be exact, because it could change after you check.
   //          This is only for hueristics to decide when we're overloaded.
-  unsigned long getSize();
-
+  unsigned long long getSize(bool lock = true);
  private:
   void storeInitCommon();
   void configureInline(pStoreConf configuration);
@@ -92,7 +94,7 @@ class StoreQueue {
   cmd_queue_t cmdQueue;
   boost::shared_ptr<logentry_vector_t> msgQueue;
   boost::shared_ptr<logentry_vector_t> failedMessages;
-  unsigned long msgQueueSize;   // in bytes
+  unsigned long long msgQueueSize;   // in bytes
   pthread_t storeThread;
 
   // Mutexes
@@ -110,11 +112,11 @@ class StoreQueue {
   bool multiCategory; // Whether multiple categories are handled
 
   // configuration
-  std::string   categoryHandled;  // what category this store is handling
-  time_t        checkPeriod;      // how often to call periodicCheck in seconds
-  unsigned long targetWriteSize;  // in bytes
-  time_t        maxWriteInterval; // in seconds
-  bool          mustSucceed;      // Always retry even if secondary fails
+  std::string        categoryHandled;  // what category this store is handling
+  time_t             checkPeriod;      // how often to call periodicCheck in seconds
+  unsigned long long targetWriteSize;  // in bytes
+  time_t             maxWriteInterval; // in seconds
+  bool               mustSucceed;      // Always retry even if secondary fails
 
   // Store that will handle messages. This can contain other stores.
   boost::shared_ptr<Store> store;

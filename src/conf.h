@@ -55,10 +55,12 @@ class StoreConf {
   bool getStore(const std::string& storeName, pStoreConf& _return);
   bool getInt(const std::string& intName, long int& _return);
   bool getUnsigned(const std::string& intName, unsigned long int& _return);
+  bool getUnsignedLongLong(const std::string& intName, unsigned long long& _return);
   bool getString(const std::string& stringName, std::string& _return);
 
   void setString(const std::string& stringName, const std::string& value);
   void setUnsigned(const std::string& intName, unsigned long value);
+  void setUnsignedLongLong(const std::string& intName, unsigned long long value);
 
   // Reads configuration from a file and throws an exception if it fails.
   void parseConfig(const std::string& filename);

@@ -13,7 +13,7 @@
 using namespace std;
 
 HdfsFile::HdfsFile(const std::string& name) : FileInterface(name, false), inputBuffer_(NULL), bufferSize_(0) {
-  LOG_OPER("[hdfs] Connecting to HDFS");
+  LOG_OPER("[hdfs] Connecting to HDFS for %s", name.c_str());
 
   // First attempt to parse the hdfs cluster from the path name specified.
   // If it fails, then use the default hdfs cluster.
@@ -29,6 +29,7 @@ HdfsFile::HdfsFile(const std::string& name) : FileInterface(name, false), inputB
 
 HdfsFile::~HdfsFile() {
   if (fileSys) {
+    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
     hdfsDisconnect(fileSys);
   }
   fileSys = 0;
@@ -36,6 +37,9 @@ HdfsFile::~HdfsFile() {
 }
 
 bool HdfsFile::openRead() {
+  if (!fileSys) {
+    fileSys = connectToPath(filename.c_str());
+  }
   if (fileSys) {
     hfile = hdfsOpenFile(fileSys, filename.c_str(), O_RDONLY, 0, 0, 0);
   }
@@ -49,6 +53,9 @@ bool HdfsFile::openRead() {
 bool HdfsFile::openWrite() {
   int flags;
 
+  if (!fileSys) {
+    fileSys = connectToPath(filename.c_str());
+  }
   if (!fileSys) {
     return false;
   }
@@ -92,6 +99,11 @@ void HdfsFile::close() {
       LOG_OPER("[hdfs] closed %s", filename.c_str());
     }
     hfile = 0;
+
+    // Close the file system
+    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
+    hdfsDisconnect(fileSys);
+    fileSys = 0;
   }
 }
 

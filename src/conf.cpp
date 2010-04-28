@@ -66,6 +66,16 @@ bool StoreConf::getUnsigned(const std::string& intName, unsigned long int& _retu
   }
 }
 
+bool StoreConf::getUnsignedLongLong(const std::string& llName, unsigned long long& _return) {
+  string str;
+  if (getString(llName, str)) {
+    _return = strtoull(str.c_str(), NULL, 10);
+    return true;
+  } else {
+    return false;
+  }
+}
+
 bool StoreConf::getString(const std::string& stringName, std::string& _return) {
   string_map_t::iterator iter = values.find(stringName);
   if (iter != values.end()) {
@@ -81,6 +91,12 @@ void StoreConf::setString(const std::string& stringName, const std::string& valu
 }
 
 void StoreConf::setUnsigned(const std::string& stringName, unsigned long value) {
+  ostringstream oss;
+  oss << value;
+  setString(stringName, oss.str());
+}
+
+void StoreConf::setUnsignedLongLong(const std::string& stringName, unsigned long long value) {
   ostringstream oss;
   oss << value;
   setString(stringName, oss.str());
