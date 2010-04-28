@@ -73,7 +73,16 @@ class integerhash {
 class strhash {
  public:
   static uint32_t hash32(const char *s) {
-    return 0;
+    // Use the djb2 hash (http://www.cse.yorku.ca/~oz/hash.html)
+    if (s == NULL) {
+      return 0;
+    }
+    uint32_t hash = 5381;
+    int c;
+    while ((c = *s++)) {
+      hash = ((hash << 5) + hash) + c; // hash * 33 + c
+    }
+    return hash;
   }
 };
 
