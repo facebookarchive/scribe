@@ -68,7 +68,13 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void incCounter(std::string counter);
   void incCounter(std::string counter, long amount);
 
+  inline void setServer(
+      boost::shared_ptr<apache::thrift::server::TNonblockingServer> & server) {
+    this->server = server;
+  }
  private:
+  boost::shared_ptr<apache::thrift::server::TNonblockingServer> server;
+
   unsigned long checkPeriod; // periodic check interval for all contained stores
 
   // This map has an entry for each configured category.

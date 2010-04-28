@@ -130,8 +130,9 @@ int main(int argc, char **argv) {
       thread_manager->start();
     }
 
-    TNonblockingServer server(processor, binaryProtocolFactory,
-                              g_Handler->port, thread_manager);
+    shared_ptr<TNonblockingServer> server(new TNonblockingServer(processor,
+        binaryProtocolFactory, g_Handler->port, thread_manager));
+    g_Handler->setServer(server);
 
     LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
     fflush(stderr);
@@ -140,14 +141,14 @@ int main(int argc, char **argv) {
     unsigned long mconn = g_Handler->getMaxConn();
     if (mconn > 0) {
       LOG_OPER("Throttle max_conn to %lu", mconn);
-      server.setMaxConnections(mconn);
-      server.setOverloadAction(T_OVERLOAD_CLOSE_ON_ACCEPT);
+      server->setMaxConnections(mconn);
+      server->setOverloadAction(T_OVERLOAD_CLOSE_ON_ACCEPT);
     }
 
     // increase the maximum request size that thrift will accept
-    server.setMaxFrameSize(numeric_limits<size_t>::max());
-
-    server.serve();
+    server->setMaxFrameSize(numeric_limits<size_t>::max());
+    
+    server->serve();
 
   } catch(const std::exception& e) {
     LOG_OPER("Exception in main: %s", e.what());
@@ -524,7 +525,6 @@ bool scribeHandler::throttleDeny(int num_messages) {
 
 void scribeHandler::stopStores() {
   setStatus(STOPPING);
-
   shared_ptr<store_list_t> store_list;
   for (store_list_t::iterator store_iter = defaultStores.begin();
       store_iter != defaultStores.end(); ++store_iter) {
@@ -533,16 +533,18 @@ void scribeHandler::stopStores() {
     }
   }
   defaultStores.clear();
-  // Thrift doesn't currently support stopping the server from the handler,
-  // so this could leave clients in weird states.
   deleteCategoryMap(categories);
   deleteCategoryMap(category_prefixes);
+
 }
 
 void scribeHandler::shutdown() {
   RWGuard monitor(scribeHandlerLock, true);
-
   stopStores();
+  if (server.get()) {
+    server->stop();
+    server.reset();
+  }
   exit(0);
 }
 
