@@ -541,11 +541,8 @@ void scribeHandler::stopStores() {
 void scribeHandler::shutdown() {
   RWGuard monitor(scribeHandlerLock, true);
   stopStores();
-  if (server.get()) {
-    server->stop();
-    server.reset();
-  }
-  exit(0);
+  // calling stop to allow thrift to clean up client states and exit
+  server->stop();
 }
 
 void scribeHandler::reinitialize() {
