@@ -15,9 +15,10 @@
 //
 // See accompanying file LICENSE or visit the Scribe site at:
 // http://developers.facebook.com/scribe/
+// put your thrift and scribe php root here
+$GLOBALS['THRIFT_ROOT'] = '/usr/local/thrift/php/thrift';
+$GLOBALS['SCRIBE_ROOT'] = '/usr/local/thrift/php/thrift/packages';
 
-$GLOBALS['THRIFT_ROOT'] = '/var/www/lib/thrift';
-$GLOBALS['SCRIBE_ROOT'] = '/var/www/lib/thrift/packages/scribe';
 include_once $GLOBALS['SCRIBE_ROOT'].'/scribe.php';
 include_once $GLOBALS['THRIFT_ROOT'].'/protocol/TBinaryProtocol.php';
 include_once $GLOBALS['THRIFT_ROOT'].'/transport/TFramedTransport.php';

@@ -25,8 +25,8 @@ include_once 'testutil.php';
 ///////////////////////////////////////////////////////////////////////////////
 // Change these paths to the location of your scribed binary and
 // scribe_ctrl script
-$GLOBALS['SCRIBE_BIN']  = '../../_bin/scribe/src';
-$GLOBALS['SCRIBE_CTRL'] = '../scripts';
+$GLOBALS['SCRIBE_BIN']  = '../src';
+$GLOBALS['SCRIBE_CTRL'] = '../examples';
 //
 ///////////////////////////////////////////////////////////////////////////////
 
