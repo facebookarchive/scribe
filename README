@@ -79,15 +79,9 @@ Helpful tips:
  log_entry = scribe.LogEntry(category=category, message=sys.stdin.read())
  to
  log_entry = scribe.LogEntry(dict(category=category, message=sys.stdin.read()))
- The current scribe_cat works with latest thrift code if you clone their dev 
+ The current scribe_cat works with latest thrift code if you clone their dev
  repository.
 
-Resources
-=========
-
-More information about Scribe can be obtained on the Scribe webpage at:
-
-     http://developers.facebook.com/scribe
 
 
 To build
