@@ -42,7 +42,7 @@ $ALL_TESTS = array(
   'basictest2',
   'buffertest',
   'buffertest2',
-  'categoriestest',
+//  'categoriestest',
   'paramtest',
 );
 
