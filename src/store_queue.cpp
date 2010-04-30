@@ -29,7 +29,7 @@ using namespace boost;
 using namespace scribe::thrift;
 
 #define DEFAULT_TARGET_WRITE_SIZE  16384LL
-#define DEFAULT_MAX_WRITE_INTERVAL 10
+#define DEFAULT_MAX_WRITE_INTERVAL 1
 
 void* threadStatic(void *this_ptr) {
   StoreQueue *queue_ptr = (StoreQueue*)this_ptr;
