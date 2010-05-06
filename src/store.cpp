@@ -54,9 +54,9 @@ using namespace scribe::thrift;
 
 // Parameters for adaptive_backoff
 #define DEFAULT_MIN_RETRY                         5
-#define DEFAULT_MAX_RETRY                         300
-#define DEFAULT_RANDOM_OFFSET_RANGE               60
-#define MULT_INC_FACTOR                           2
+#define DEFAULT_MAX_RETRY                         100
+#define DEFAULT_RANDOM_OFFSET_RANGE               20
+const double MULT_INC_FACTOR =                    1.414; //sqrt(2)
 #define ADD_DEC_FACTOR                            2
 #define CONT_SUCCESS_THRESHOLD                    1
 
@@ -1651,7 +1651,7 @@ void BufferStore::setNewRetryInterval(bool success) {
       }
     }
     else {
-      retryInterval *= MULT_INC_FACTOR;
+      retryInterval = static_cast <time_t> (retryInterval*MULT_INC_FACTOR);
       retryInterval += (rand() % maxRandomOffset);
       if (retryInterval > maxRetryInterval) {
         retryInterval = maxRetryInterval;
