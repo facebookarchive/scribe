@@ -855,7 +855,7 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
       num_buffered++;
 
       // Write buffer if processing last message or if larger than allowed
-      if ((currentSize + current_size_buffered > max_write_size && maxSize != 0) ||
+      if ((current_size_buffered > max_write_size && maxSize != 0) ||
           messages->end() == iter + 1 ) {
         if (!write_file->write(write_buffer)) {
           LOG_OPER("[%s] File store failed to write (%lu) messages to file",
