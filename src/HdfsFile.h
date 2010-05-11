@@ -75,6 +75,7 @@ class HdfsFile : public FileInterface {
   void close()    {};
   bool write(const std::string& data) { return false; };
   void flush()    {};
+  void sync()     {};
   unsigned long fileSize() { return 0; };
   bool readNext(std::string& _return) { return false; };
   void deleteFile() {};
