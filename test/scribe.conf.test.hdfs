@@ -29,7 +29,7 @@
 #
 # Each store has a category and a type. The category must match the
 # category string used by the client code, and the type must be one of:
-# file, network, bucket, buffer.  The remainder of the store 
+# file, hdfs, network, bucket, buffer.  The remainder of the store 
 # configuration depends on the type.
 #
 # Some types of stores include other stores, which are specified by 
@@ -62,10 +62,11 @@ retry_interval_range=10
 
 <primary>
 type=file
-fs_type=std
-file_path=/tmp/scribetest
+fs_type=hdfs
+file_path=hdfs://hadoopnode.mydomain.com:9000/tmp/scribetest.hdfs
+create_symlink=yes
 base_filename=thisisoverwritten
-max_size=1000000
+max_size=100000000
 chunk_size=1024
 rotate_period=daily
 rotate_hour=0
@@ -81,44 +82,3 @@ base_filename=thisisoverwritten
 max_size=3000000
 </secondary>
 </store>
-
-# BUCKETIZER TEST
-<store>
-category=buckettest
-type=buffer
-
-target_write_size=20480
-max_write_interval=1
-buffer_send_rate=2
-retry_interval=30
-retry_interval_range=10
-
-<primary>
-type=bucket
-num_buckets=6
-bucket_subdir=bucket
-bucket_type=key_hash
-delimiter=1
-
-<bucket>
-type=file
-fs_type=std
-file_path=/tmp/scribetest
-base_filename=buckettest
-max_size=1000000
-rotate_period=hourly
-rotate_hour=0
-rotate_minute=30
-write_meta=yes
-</bucket>
-</primary>
-
-<secondary>
-type=file
-fs_type=std
-file_path=/tmp
-base_filename=buckettest
-max_size=30000
-</secondary>
-</store>
-

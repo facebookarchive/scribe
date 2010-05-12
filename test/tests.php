@@ -15,7 +15,7 @@
 //
 // See accompanying file LICENSE or visit the Scribe site at:
 // http://developers.facebook.com/scribe/
-
+// put your thrift and scribe php root here
 $GLOBALS['THRIFT_ROOT'] = '/usr/local/thrift/php/thrift';
 $GLOBALS['SCRIBE_ROOT'] = '/usr/local/thrift/php/thrift/packages';
 
@@ -36,15 +36,15 @@ function simple_test() {
   $messages []= $msg2;
   $msg3 = new LogEntry;
   $msg3->category = 'buckettest';
-  $msg3->message = '99	a key-value message with a non-printable delimiter\n';
+  $msg3->message = '99' . chr(1) . 'a key-value message with a non-printable delimiter\n';
   $messages []= $msg3;
   $msg4 = new LogEntry;
   $msg4->category = 'buckettest';
-  $msg4->message = '99	a different message in the same bucket\n';
+  $msg4->message = '99' . chr(1) . 'a different message in the same bucket\n';
   $messages []= $msg4;
   $msg5 = new LogEntry;
   $msg5->category = 'buckettest';
-  $msg5->message = '98	a different bucket\n';
+  $msg5->message = '98' . chr(1) . 'a different bucket\n';
   $messages []= $msg5;
 
   $scribe_client = create_scribe_client();
