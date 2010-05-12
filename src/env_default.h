@@ -20,6 +20,8 @@
 #ifndef SCRIBE_ENV
 #define SCRIBE_ENV
 
+// scribe version
+const std::string scribeversion("2.2");
 #define DEFAULT_CONF_FILE_LOCATION "/usr/local/scribe/scribe.conf"
 
 /*
