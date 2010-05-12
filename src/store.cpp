@@ -1006,21 +1006,7 @@ bool FileStore::empty(struct tm* now) {
 
   std::vector<std::string> files = FileInterface::list(filePath, fsType);
 
-  std::string base_filename = makeBaseFilename(now);
-  for (std::vector<std::string>::iterator iter = files.begin();
-       iter != files.end();
-       ++iter) {
-    int suffix =  getFileSuffix(*iter, base_filename);
-    if (-1 != suffix) {
-      std::string fullname = makeFullFilename(suffix, now);
-      shared_ptr<FileInterface> file = FileInterface::createFileInterface(fsType,
-                                                                      fullname);
-      if (file->fileSize()) {
-        return false;
-      }
-    } // else it doesn't match the filename for this store
-  }
-  return true;
+  return files.empty();
 }
 
 
@@ -1121,8 +1107,14 @@ bool ThriftFileStore::openInternal(bool incrementFilename, struct tm* current_ti
     localtime_r(&rawtime, &timeinfo);
     current_time = &timeinfo;
   }
-
-  int suffix = findNewestFile(makeBaseFilename(current_time));
+  int suffix;
+  try {
+    suffix = findNewestFile(makeBaseFilename(current_time));
+  } catch(const std::exception& e) {
+    LOG_OPER("Exception < %s > in ThriftFileStore::openInternal",
+      e.what());
+    return false;
+  }
 
   if (incrementFilename) {
     ++suffix;
@@ -1533,7 +1525,7 @@ void BufferStore::periodicCheck() {
     if (flushStreaming) {
       uint64_t qsize = storeQueue->getSize();
       if(qsize >=
-         maxByPassRatio * g_Handler->getMaxQueueSize()) {
+          maxByPassRatio * g_Handler->getMaxQueueSize()) {
         return;
       }
     }
@@ -1545,62 +1537,69 @@ void BufferStore::periodicCheck() {
     // messages read is controlled by the max file size)
     // parameter max_size for filestores in the configuration
     unsigned sent = 0;
-    for (sent = 0; sent < bufferSendRate; ++sent) {
-      boost::shared_ptr<logentry_vector_t> messages(new logentry_vector_t);
-      // Reads come complete buffered file
-      // this file size is controlled by max_size in the configuration
-      if (secondaryStore->readOldest(messages, &nowinfo)) {
+    try {
+      for (sent = 0; sent < bufferSendRate; ++sent) {
+        boost::shared_ptr<logentry_vector_t> messages(new logentry_vector_t);
+        // Reads come complete buffered file
+        // this file size is controlled by max_size in the configuration
+        if (secondaryStore->readOldest(messages, &nowinfo)) {
 
-        unsigned long size = messages->size();
-        if (size) {
-          if (primaryStore->handleMessages(messages)) {
-            secondaryStore->deleteOldest(&nowinfo);
-            if (adaptiveBackoff) {
-              setNewRetryInterval(true);
-            }
-          } else {
-
-            if (messages->size() != size) {
-              // We were only able to process some, but not all of this batch
-              // of messages.  Replace this batch of messages with
-              // just the messages that were not processed.
-              LOG_OPER("[%s] buffer store primary store processed %lu/%lu messages",
-                       categoryHandled.c_str(), size - messages->size(), size);
-
-              // Put back un-handled messages
-              if (!secondaryStore->replaceOldest(messages, &nowinfo)) {
-                // Nothing we can do but try to remove oldest messages and
-                // report a loss
-                LOG_OPER("[%s] buffer store secondary store lost %lu messages",
-                         categoryHandled.c_str(), messages->size());
-                g_Handler->incCounter(categoryHandled, "lost", messages->size());
-                secondaryStore->deleteOldest(&nowinfo);
+          unsigned long size = messages->size();
+          if (size) {
+            if (primaryStore->handleMessages(messages)) {
+              secondaryStore->deleteOldest(&nowinfo);
+              if (adaptiveBackoff) {
+                setNewRetryInterval(true);
               }
+            } else {
+
+              if (messages->size() != size) {
+                // We were only able to process some, but not all of this batch
+                // of messages.  Replace this batch of messages with
+                // just the messages that were not processed.
+                LOG_OPER("[%s] buffer store primary store processed %lu/%lu messages",
+                    categoryHandled.c_str(), size - messages->size(), size);
+
+                // Put back un-handled messages
+                if (!secondaryStore->replaceOldest(messages, &nowinfo)) {
+                  // Nothing we can do but try to remove oldest messages and
+                  // report a loss
+                  LOG_OPER("[%s] buffer store secondary store lost %lu messages",
+                      categoryHandled.c_str(), messages->size());
+                  g_Handler->incCounter(categoryHandled, "lost", messages->size());
+                  secondaryStore->deleteOldest(&nowinfo);
+                }
+              }
+              changeState(DISCONNECTED);
+              break;
             }
-            changeState(DISCONNECTED);
-            break;
+          }  else {
+            // else it's valid for read to not find anything but not error
+            secondaryStore->deleteOldest(&nowinfo);
           }
-        }  else {
-          // else it's valid for read to not find anything but not error
-          secondaryStore->deleteOldest(&nowinfo);
+        } else {
+          // This is bad news. We'll stay in the sending state
+          // and keep trying to read.
+          setStatus("Failed to read from secondary store");
+          LOG_OPER("[%s] WARNING: buffer store can't read from secondary store",
+              categoryHandled.c_str());
+          break;
         }
-      } else {
-        // This is bad news. We'll stay in the sending state
-        // and keep trying to read.
-        setStatus("Failed to read from secondary store");
-        LOG_OPER("[%s] WARNING: buffer store can't read from secondary store",
-                 categoryHandled.c_str());
-        break;
-      }
 
-      if (secondaryStore->empty(&nowinfo)) {
-        LOG_OPER("[%s] No more buffer files to send, switching to streaming mode",
-                  categoryHandled.c_str());
-        changeState(STREAMING);
+        if (secondaryStore->empty(&nowinfo)) {
+          LOG_OPER("[%s] No more buffer files to send, switching to streaming mode",
+              categoryHandled.c_str());
+          changeState(STREAMING);
 
-        primaryStore->flush();
-        break;
+          break;
+        }
       }
+    } catch(const std::exception& e) {
+      LOG_OPER("[%s] Failed in secondary to primary transfer ",
+          categoryHandled.c_str());
+      LOG_OPER("Exception: %s", e.what());
+      setStatus("bufferstore sending_buffer failure");
+      changeState(DISCONNECTED);
     }
   }// if state == SENDING_BUFFER
 }
@@ -1785,10 +1784,10 @@ bool NetworkStore::open() {
     } else {
       if (unpooledConn != NULL) {
         LOG_OPER("Logic error: NetworkStore::open unpooledConn is not NULL"
-	    " service = %s", serviceName.c_str());
+            " service = %s", serviceName.c_str());
       }
       unpooledConn = shared_ptr<scribeConn>(new scribeConn(serviceName,
-          servers, static_cast<int>(timeout)));
+            servers, static_cast<int>(timeout)));
       opened = unpooledConn->open();
       if (!opened) {
         unpooledConn.reset();
@@ -1946,7 +1945,7 @@ BucketStore::~BucketStore() {
 
 // Given a single bucket definition, create multiple buckets
 void BucketStore::createBucketsFromBucket(pStoreConf configuration,
-					  pStoreConf bucket_conf) {
+    pStoreConf bucket_conf) {
   string error_msg, bucket_subdir, type, path, failure_bucket;
   bool needs_bucket_subdir = false;
   unsigned long bucket_offset = 0;

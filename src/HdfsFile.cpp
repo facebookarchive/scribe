@@ -170,6 +170,8 @@ void HdfsFile::listImpl(const std::string& path,
       }
       hdfsFreeFileInfo(pHdfsFileInfo, numEntries);
     }
+  } else if (value == -1) {
+    throw std::runtime_error("hdfsExists call failed");
   }
 }
 
