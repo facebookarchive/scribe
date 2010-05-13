@@ -425,7 +425,7 @@ void scribeHandler::addMessage(
 
 
 ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
-  ResultCode result;
+  ResultCode result = TRY_LATER;
 
   scribeHandlerLock.acquireRead();
   if(status == STOPPING) {
