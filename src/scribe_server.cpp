@@ -428,6 +428,10 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
   ResultCode result;
 
   scribeHandlerLock.acquireRead();
+  if(status == STOPPING) {
+    result = TRY_LATER;
+    goto end;
+  }
 
   if (throttleRequest(messages)) {
     result = TRY_LATER;
@@ -459,14 +463,19 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
       scribeHandlerLock.release();
       scribeHandlerLock.acquireWrite();
 
+      // This may cause some duplicate messages if some messages in this batch
+      // were already added to queues
+      if(status == STOPPING) {
+        result = TRY_LATER;
+        goto end;
+      }
+
       if ((cat_iter = categories.find(category)) != categories.end()) {
         store_list = cat_iter->second;
       } else {
         store_list = createNewCategory(category);
       }
 
-      scribeHandlerLock.release();
-      scribeHandlerLock.acquireRead();
     }
 
     if (store_list == NULL) {
@@ -886,7 +895,7 @@ void scribeHandler::deleteCategoryMap(category_map_t& cats) {
          ++store_iter) {
       if (!*store_iter) {
         throw std::logic_error("deleteCategoryMap: "
-	    "iterator in store map holds null pointer");
+            "iterator in store map holds null pointer");
       }
 
       if (!(*store_iter)->isModelStore()) {
