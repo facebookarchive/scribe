@@ -84,7 +84,7 @@ endif
 
 # Shared -- multiple libraries can be defined
 if SHARED
-shareddir = lib
+shareddir = $(prefix)/lib
 shared_PROGRAMS = libscribe.so
 libscribe_so_SOURCES = gen-cpp/scribe.cpp gen-cpp/scribe_types.cpp
 libscribe_so_CXXFLAGS = $(SHARED_CXXFLAGS)
