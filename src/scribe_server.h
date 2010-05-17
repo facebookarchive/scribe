@@ -71,6 +71,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   inline void setServer(
       boost::shared_ptr<apache::thrift::server::TNonblockingServer> & server) {
     this->server = server;
+  }
   unsigned long getMaxConn() {
     return maxConn;
   }

@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
       server->setOverloadAction(T_OVERLOAD_CLOSE_ON_ACCEPT);
     }
 
-    server.serve();
+    server->serve();
 
   } catch(const std::exception& e) {
     LOG_OPER("Exception in main: %s", e.what());
@@ -259,10 +259,6 @@ const char* scribeHandler::statusAsString(fb_status status) {
 // Should be called while holding a writeLock on scribeHandlerLock
 bool scribeHandler::createCategoryFromModel(
   const string &category, const boost::shared_ptr<StoreQueue> &model) {
-
-  if (pcategories == NULL) {
-    return false;
-  }
 
   // Make sure the category name is sane.
   try {

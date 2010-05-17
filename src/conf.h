@@ -42,10 +42,10 @@ typedef boost::shared_ptr<StoreConf> pStoreConf;
 typedef std::map<std::string, std::string> string_map_t;
 typedef std::map<std::string, pStoreConf> store_conf_map_t;
 
-ostream& operator<<(ostream& os, const StoreConf& storeConf);
+std::ostream& operator<<(std::ostream& os, const StoreConf& storeConf);
 
 class StoreConf {
- friend ostream& operator<<(ostream& os, const StoreConf& storeConf);
+ friend std::ostream& operator<<(std::ostream& os, const StoreConf& storeConf);
  public:
   StoreConf();
   virtual ~StoreConf();
@@ -76,7 +76,7 @@ class StoreConf {
                          /*out*/ StoreConf* parsed_config);
   static std::string trimString(const std::string& str);
   bool readConfFile(const std::string& filename, std::queue<std::string>& _return);
-  ostream& print(ostream& os, uint32_t depth, bool useSpace = true,
+  std::ostream& print(std::ostream& os, uint32_t depth, bool useSpace = true,
                  uint32_t tabw = 2) const;
 };
 
