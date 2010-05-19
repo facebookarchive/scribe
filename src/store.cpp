@@ -780,6 +780,13 @@ bool FileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   return writeMessages(messages);
 }
 
+void FileStore::periodicCheck() {
+  if (!isOpen()) {
+    return;
+  }
+  FileStoreBase::periodicCheck();
+}
+
 // writes messages to either the specified file or the the current writeFile
 bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
                               boost::shared_ptr<FileInterface> file) {
@@ -1362,14 +1369,13 @@ bool BufferStore::open() {
 
   // try to open the primary store, and set the state accordingly
   if (primaryStore->open()) {
-    // in case there are files left over from a previous instance
-    changeState(SENDING_BUFFER);
-
     // If we don't need to send buffers, skip to streaming
     if (!replayBuffer) {
-      // We still switch state to SENDING_BUFFER first just to make sure we
       // can open the secondary store
       changeState(STREAMING);
+    } else {
+    // in case there are files left over from a previous instance
+    changeState(SENDING_BUFFER);
     }
   } else {
     secondaryStore->open();
