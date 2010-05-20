@@ -32,6 +32,7 @@
 #include "file.h"
 #include "conn_pool.h"
 #include "store_queue.h"
+#include "network_dynamic_config.h"
 
 class StoreQueue;
 
@@ -381,6 +382,7 @@ class NetworkStore : public Store {
   void configure(pStoreConf configuration, pStoreConf parent);
   void close();
   void flush();
+  void periodicCheck();
 
  protected:
   static const long int DEFAULT_SOCKET_TIMEOUT_MS = 5000; // 5 sec timeout
@@ -398,6 +400,7 @@ class NetworkStore : public Store {
   time_t lastServiceCheck;
   // if true do not update status to reflect failure to connect
   bool ignoreNetworkError;
+  NetworkDynamicConfigMod* configmod;
 
   // state
   bool opened;

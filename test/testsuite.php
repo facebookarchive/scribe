@@ -43,7 +43,9 @@ $ALL_TESTS = array(
   'buffertest',
   'buffertest2',
 //  'categoriestest',
+  'bucketupdater',
   'paramtest',
+  'reloadtest',
 );
 
 $output_file = null;

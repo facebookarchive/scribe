@@ -420,6 +420,34 @@ function make_message($client_name, $avg_size, $sequence, $random) {
   return $message;
 }
 
+function create_bucketupdater_client($host, $port) {
+  try {
+    // Set up the socket connections
+    print "creating socket pool\n";
+    $sock = new TSocketPool(array($host), array($port));
+    $sock->setDebug(0);
+    $sock->setSendTimeout(1000);
+    $sock->setRecvTimeout(2500);
+    $sock->setNumRetries(1);
+    $sock->setRandomize(false);
+    $sock->setAlwaysTryLast(true);
+    $trans = new TFramedTransport($sock);
+    $prot = new TBinaryProtocol($trans);
+
+    // Create the client
+    print "creating bucketupdater client\n";
+    $updater_client = new BucketStoreMappingClient($prot);
+
+    // Open the transport (we rely on PHP to close it at script termination)
+    print "opening transport\n";
+    $trans->open();
+  } catch (Exception $x) {
+    print "Unable to create bucket updater client, received exception: $x \n";
+    return null;
+  }
+  return $updater_client;
+}
+
 function create_scribe_client() {
   try {
     // Set up the socket connections

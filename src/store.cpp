@@ -27,7 +27,8 @@
 #include <algorithm>
 #include "common.h"
 #include "scribe_server.h"
-#include "thrift/transport/TSimpleFileTransport.h"
+#include "thrift/lib/cpp/transport/TSimpleFileTransport.h"
+#include "network_dynamic_config.h"
 
 using namespace std;
 using namespace boost;
@@ -59,8 +60,6 @@ using namespace scribe::thrift;
 const double MULT_INC_FACTOR =                    1.414; //sqrt(2)
 #define ADD_DEC_FACTOR                            2
 #define CONT_SUCCESS_THRESHOLD                    1
-
-
 
 ConnPool g_connPool;
 
@@ -1718,8 +1717,10 @@ NetworkStore::NetworkStore(StoreQueue* storeq,
     serviceBased(false),
     remotePort(0),
     serviceCacheTimeout(DEFAULT_NETWORKSTORE_CACHE_TIMEOUT),
-    lastServiceCheck(0),
-    opened(false) {
+    ignoreNetworkError(false),
+    configmod(NULL),
+    opened(false),
+    lastServiceCheck(0) {
   // we can't open the connection until we get configured
 
   // the bool for opened ensures that we don't make duplicate
@@ -1755,6 +1756,58 @@ void NetworkStore::configure(pStoreConf configuration, pStoreConf parent) {
   if (configuration->getString("use_conn_pool", temp)) {
     if (0 == temp.compare("yes")) {
       useConnPool = true;
+    }
+  }
+  if (configuration->getString("ignore_network_error", temp)) {
+    if (0 == temp.compare("yes")) {
+      ignoreNetworkError = true;
+    }
+  }
+
+  // if this network store dynamic configured?
+  // get network dynamic updater parameters
+  string dynamicType;
+  if (configuration->getString("dynamic_config_type", dynamicType)) {
+    // get dynamic config module
+    configmod = getNetworkDynamicConfigMod(dynamicType.c_str());
+    if (configmod) {
+      if (!configmod->isConfigValidFunc(categoryHandled, configuration.get())) {
+        LOG_OPER("[%s] dynamic network configuration is not valid.",
+                categoryHandled.c_str());
+        configmod = NULL;
+      } else {
+        // set remote host port
+	      string host;
+	      uint32_t port;
+        if (configmod->getHostFunc(categoryHandled, storeConf.get(), host, port)) {
+          remoteHost = host;
+          remotePort = port;
+          LOG_OPER("[%s] dynamic configred network store destination configured:<%s:%lu>",
+            categoryHandled.c_str(), remoteHost.c_str(), remotePort);
+        }
+      }
+    } else {
+      LOG_OPER("[%s] dynamic network configuration is not valid. Unable to find network dynamic configuration module with name <%s>",
+                categoryHandled.c_str(), dynamicType.c_str());
+    }
+  }
+}
+
+void NetworkStore::periodicCheck() {
+  if (configmod) {
+    // get the network updater type
+    string host;
+    uint32_t port;
+    bool success = configmod->getHostFunc(categoryHandled, storeConf.get(), host, port);
+	  if (success && (host != remoteHost || port != remotePort)) {
+      // if it is different from the current configuration
+      // then close and open again
+      LOG_OPER("[%s] dynamic configred network store destination changed. old value:<%s:%lu>, new value:<%s:%lu>",
+          categoryHandled.c_str(), remoteHost.c_str(), remotePort,
+          host.c_str(), (long unsigned)port);
+      remoteHost = host;
+      remotePort = port;
+		  close();
     }
   }
 }
@@ -1824,8 +1877,8 @@ bool NetworkStore::open() {
     }
   }
 
-
-  if (opened) {
+  if (opened || ignoreNetworkError) {
+    // clear status on success or if we should not signal error here
     setStatus("");
   } else {
     setStatus("Failed to connect");
@@ -2083,6 +2136,12 @@ void BucketStore::createBuckets(pStoreConf configuration) {
       createStore(storeQueue, type, categoryHandled, false, multiCategory);
 
     buckets.push_back(bucket);
+    //add bucket id configuration
+    bucket_conf->setUnsigned("bucket_id", i);
+    bucket_conf->setUnsigned("network::bucket_id", i);
+    bucket_conf->setUnsigned("file::bucket_id", i);
+    bucket_conf->setUnsigned("thriftfile::bucket_id", i);
+    bucket_conf->setUnsigned("buffer::bucket_id", i);
     bucket->configure(bucket_conf, storeConf);
   }
 

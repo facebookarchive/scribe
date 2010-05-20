@@ -89,6 +89,17 @@ function scribe_stop($scribe_ctrl_path, $port, $pid = 0) {
   return true;
 }
 
+/**
+ * reload scribe
+ */
+function scribe_reload($scribe_ctrl_path, $port) {
+  $cmd = "$scribe_ctrl_path/scribe_ctrl reload $port";
+  system($cmd, $ret);
+
+  // return true if scribe is alive
+  return $ret == 0;
+}
+
 function check_alive($scribe_ctrl_path, $port) {
   $scribe_ctrl = "$scribe_ctrl_path/scribe_ctrl";
   $command = "$scribe_ctrl status $port ";

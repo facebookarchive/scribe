@@ -28,7 +28,7 @@ $pid = scribe_start('paramtest', $GLOBALS['SCRIBE_BIN'],
 
 print("running param inheritance test\n");
 param_test();
-sleep(5);
+sleep(2);
 
 // check results
 $file = "/tmp/scribetest_/paramtest/primary_current";

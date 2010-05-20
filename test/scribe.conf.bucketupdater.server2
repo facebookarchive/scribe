@@ -84,31 +84,19 @@ max_size=3000000
 </store>
 
 <store>
-category=paramtest
-type=buffer
-
+category=bucketupdater
 target_write_size=1
-max_write_interval=1
-buffer_send_rate=2
-retry_interval=3
-retry_interval_range=1
-# file_path inherited by both primary and 
-# secondary store
-file::file_path=/tmp/scribetest_/paramtest
-#file::file_path=/tmp/scribetest_/paramtest2
-file::max_size=10000000
+type=bucket
+num_buckets=3
+bucket_subdir=bucket
+bucket_type=key_modulo
+delimiter=59
 
-<primary>
+<bucket>
 type=file
-base_filename=primary
-rotate_period=daily
-rotate_hour=0
-rotate_minute=5
-</primary>
-
-<secondary>
-type=file
-base_filename=secondary
-</secondary>
+fs_type=std
+file_path=/tmp/scribetest_/bucketupdater/server2
+base_filename=content
+max_size=3000
+</bucket>
 </store>
-
