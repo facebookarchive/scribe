@@ -69,7 +69,7 @@ function scribe_stop($scribe_ctrl_path, $port, $pid = 0) {
   system($command, $error);
   echo "$command => $error\n";
 
-  if ($error != 0) {
+  if ($error == 0) {
     return true;
   }
 
@@ -80,7 +80,8 @@ function scribe_stop($scribe_ctrl_path, $port, $pid = 0) {
     system('kill -9 ' . $pid, $success);
     echo "kill -9 $pid => $success\n";
 
-    if ($success) {
+    // If the kill failed
+    if ($success == -1) {
       print("ERROR: scribed did not stop after $wait seconds.\n");
       return false;
     }

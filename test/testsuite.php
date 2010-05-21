@@ -45,7 +45,7 @@ $ALL_TESTS = array(
 //  'categoriestest',
   'bucketupdater',
   'paramtest',
-  'reloadtest',
+  //'reloadtest',
 );
 
 $output_file = null;

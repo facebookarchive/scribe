@@ -20,7 +20,15 @@
 '''scribe_ctrl: A simple script for running and monitoring scribe.'''
 
 import sys
-from fb303_scripts import *
+
+#make this work for facebook environment too
+isFacebook = 1
+if (isFacebook == 1):
+    # put your own path here!
+    sys.path.insert(0, '/mytrunk/fbcode-test/common/fb303/scripts')
+    import fb303_simple_mgmt
+else:
+    from fb303_scripts import *
 
 # thrift python packages need to be installed
 import thrift
