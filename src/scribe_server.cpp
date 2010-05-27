@@ -169,6 +169,7 @@ scribeHandler::scribeHandler(unsigned long int server_port, const std::string& c
     maxQueueSize(DEFAULT_MAX_QUEUE_SIZE),
     newThreadPerCategory(true) {
   time(&lastMsgTime);
+  scribeHandlerLock = scribe::concurrency::createReadWriteMutex();
 }
 
 scribeHandler::~scribeHandler() {
@@ -179,7 +180,7 @@ scribeHandler::~scribeHandler() {
 // Returns the handler status, but overwrites it with WARNING if it's
 // ALIVE and at least one store has a nonempty status.
 fb_status scribeHandler::getStatus() {
-  RWGuard monitor(scribeHandlerLock);
+  RWGuard monitor(*scribeHandlerLock);
   Guard status_monitor(statusLock);
 
   fb_status return_status(status);
@@ -209,7 +210,7 @@ void scribeHandler::setStatus(fb_status new_status) {
 // Returns the handler status details if non-empty,
 // otherwise the first non-empty store status found
 void scribeHandler::getStatusDetails(std::string& _return) {
-  RWGuard monitor(scribeHandlerLock);
+  RWGuard monitor(*scribeHandlerLock);
   Guard status_monitor(statusLock);
 
   _return = statusDetails;
@@ -427,7 +428,7 @@ void scribeHandler::addMessage(
 ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
   ResultCode result = TRY_LATER;
 
-  scribeHandlerLock.acquireRead();
+  scribeHandlerLock->acquireRead();
   if(status == STOPPING) {
     result = TRY_LATER;
     goto end;
@@ -460,8 +461,8 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
     // Try creating a new store for this category if we didn't find one
     if (store_list == NULL) {
       // Need write lock to create a new category
-      scribeHandlerLock.release();
-      scribeHandlerLock.acquireWrite();
+      scribeHandlerLock->release();
+      scribeHandlerLock->acquireWrite();
 
       // This may cause some duplicate messages if some messages in this batch
       // were already added to queues
@@ -492,7 +493,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
   result = OK;
 
  end:
-  scribeHandlerLock.release();
+  scribeHandlerLock->release();
   return result;
 }
 
@@ -542,14 +543,14 @@ void scribeHandler::stopStores() {
 }
 
 void scribeHandler::shutdown() {
-  RWGuard monitor(scribeHandlerLock, true);
+  RWGuard monitor(*scribeHandlerLock, true);
   stopStores();
   // calling stop to allow thrift to clean up client states and exit
   server->stop();
 }
 
 void scribeHandler::reinitialize() {
-  RWGuard monitor(scribeHandlerLock, true);
+  RWGuard monitor(*scribeHandlerLock, true);
 
   // reinitialize() will re-read the config file and re-configure the stores.
   // This is done without shutting down the Thrift server, so this will not

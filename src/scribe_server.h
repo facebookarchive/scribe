@@ -105,7 +105,8 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
    * A single mutex is fine since it only needs to be locked in write mode
    * during start/stop/reinitialize or when we need to create a new category.
    */
-  apache::thrift::concurrency::ReadWriteMutex scribeHandlerLock;
+  boost::shared_ptr<apache::thrift::concurrency::ReadWriteMutex>
+    scribeHandlerLock;
 
   // disallow empty construction, copy, and assignment
   scribeHandler();

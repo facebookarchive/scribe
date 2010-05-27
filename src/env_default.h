@@ -42,6 +42,8 @@
     fprintf(stderr,"[%s] " #format_string " \n", dbgtime,##__VA_ARGS__); \
   }
 
+namespace scribe {
+
 /*
  * Network based configuration and directory service
  */
@@ -57,6 +59,42 @@ class network_config {
   }
 };
 
+/*
+ * Concurrency mechanisms
+ */
+
+class concurrency {
+public:
+  // returns a new instance of read/write mutex.
+  // you can choose different implementations based on your needs.
+  static boost::shared_ptr<apache::thrift::concurrency::ReadWriteMutex>
+  createReadWriteMutex() {
+    using apache::thrift::concurrency::ReadWriteMutex;
+
+    return boost::shared_ptr<ReadWriteMutex>(new ReadWriteMutex());
+  }
+};
+
+/*
+ * Time functions
+ */
+
+class clock {
+public:
+  static unsigned long nowInMsec() {
+    // There is a minor race condition between the 2 calls below,
+    // but the chance is really small.
+
+    // Get current time in timeval
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+
+    // Get current time in sec
+    time_t sec = time(NULL);
+
+    return ((unsigned long)sec) * 1000 + (tv.tv_usec / 1000);
+  }
+};
 
 /*
  * Hash functions
@@ -85,5 +123,7 @@ class strhash {
     return hash;
   }
 };
+
+} // !namespace scribe
 
 #endif // SCRIBE_ENV

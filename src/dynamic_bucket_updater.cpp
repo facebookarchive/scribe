@@ -50,30 +50,30 @@ bool DynamicBucketUpdater::getHost(const string& category,
   pconf->getInt("timeout", timeout);
 
   if (!service.empty()) {
-	  success = DynamicBucketUpdater::getHost(g_Handler.get(),
-                      category,
-											ttl,
-											(uint32_t)bid,
-											host,
-											port,
-											service,
-                      serviceOptions,
-											timeout, timeout, timeout);
+    success = DynamicBucketUpdater::getHost(g_Handler.get(),
+                                            category,
+                                            ttl,
+                                            (uint32_t)bid,
+                                            host,
+                                            port,
+                                            service,
+                                            serviceOptions,
+                                            timeout, timeout, timeout);
   } else {
     success = DynamicBucketUpdater::getHost(g_Handler.get(),
-                      category,
-											ttl,
-											(uint32_t)bid,
-											host,
-											port,
-											updaterHost,
-                      atoi(updaterPort.c_str()),
-											timeout, timeout, timeout);
+                                            category,
+                                            ttl,
+                                            (uint32_t)bid,
+                                            host,
+                                            port,
+                                            updaterHost,
+                                            atoi(updaterPort.c_str()),
+                                            timeout, timeout, timeout);
   }
 
   if (!success) {
     LOG_OPER("[%s] dynamic bucket updater failed: bid=%ld",
-            category.c_str(), bid);
+             category.c_str(), bid);
   }
   return success;
 }
@@ -171,22 +171,23 @@ bool DynamicBucketUpdater::getHost(facebook::fb303::FacebookBase *fbBase,
                       uint32_t sendTimeout,
                       uint32_t recvTimeout) {
     server_vector_t servers;
-    bool success = network_config::getService(serviceName,
-                                              serviceOptions,
-                                              servers);
+    bool success = scribe::network_config::getService(serviceName,
+                                                      serviceOptions,
+                                                      servers);
 
-  	// Cannot open if we couldn't find any servers
-  	if (!success || servers.empty()) {
-    	LOG_OPER("[%s] Failed to get servers from Service [%s] for dynamic bucket updater",
-                category.c_str(), serviceName.c_str());
+    // Cannot open if we couldn't find any servers
+    if (!success || servers.empty()) {
+      LOG_OPER("[%s] Failed to get servers from Service [%s] "
+               "for dynamic bucket updater",
+               category.c_str(), serviceName.c_str());
 
-    	return false;
-  	}
+      return false;
+    }
 
-		// randomly pick one from the service
-		int which = rand() % servers.size();
-		string updateHost = servers[which].first;
-		uint32_t updatePort = servers[which].second;
+    // randomly pick one from the service
+    int which = rand() % servers.size();
+    string updateHost = servers[which].first;
+    uint32_t updatePort = servers[which].second;
     return DynamicBucketUpdater::getHost(fbBase, category, ttl, bid,
                                          host, port,
                                          updateHost, updatePort,

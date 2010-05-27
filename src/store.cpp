@@ -1771,8 +1771,8 @@ void NetworkStore::configure(pStoreConf configuration, pStoreConf parent) {
         configmod = NULL;
       } else {
         // set remote host port
-	      string host;
-	      uint32_t port;
+        string host;
+        uint32_t port;
         if (configmod->getHostFunc(categoryHandled, storeConf.get(), host, port)) {
           remoteHost = host;
           remotePort = port;
@@ -1797,8 +1797,8 @@ void NetworkStore::periodicCheck() {
       // if it is different from the current configuration
       // then close and open again
       LOG_OPER("[%s] dynamic configred network store destination changed. old value:<%s:%lu>, new value:<%s:%lu>",
-          categoryHandled.c_str(), remoteHost.c_str(), remotePort,
-          host.c_str(), (long unsigned)port);
+               categoryHandled.c_str(), remoteHost.c_str(), remotePort,
+               host.c_str(), (long unsigned)port);
       remoteHost = host;
       remotePort = port;
 		  close();
@@ -1821,8 +1821,8 @@ bool NetworkStore::open() {
     if (lastServiceCheck <= (time_t) (now - serviceCacheTimeout)) {
       lastServiceCheck = now;
 
-      success =
-        network_config::getService(serviceName, serviceOptions, servers);
+      success = scribe::network_config::getService(serviceName, serviceOptions,
+                                                   servers);
     }
 
     // Cannot open if we couldn't find any servers
@@ -2088,21 +2088,18 @@ void BucketStore::createBuckets(pStoreConf configuration) {
   unsigned long i;
 
   if (configuration->getString("bucket_subdir", tmp_string)) {
-    error_msg =
-      "cannot have bucket_subdir when defining multiple buckets";
-      goto handle_error;
+    error_msg = "cannot have bucket_subdir when defining multiple buckets";
+    goto handle_error;
   }
 
   if (configuration->getString("bucket_offset", tmp_string)) {
-    error_msg =
-      "cannot have bucket_offset when defining multiple buckets";
-      goto handle_error;
+    error_msg = "cannot have bucket_offset when defining multiple buckets";
+    goto handle_error;
   }
 
   if (configuration->getString("failure_bucket", tmp_string)) {
-    error_msg =
-      "cannot have failure_bucket when defining multiple buckets";
-      goto handle_error;
+    error_msg = "cannot have failure_bucket when defining multiple buckets";
+    goto handle_error;
   }
 
   // Configure stores named 'bucket0, bucket1, bucket2, ... bucket{numBuckets}
