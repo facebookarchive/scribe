@@ -1936,6 +1936,8 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
 // first try sending an empty vector to catch dfqs
 bool
 NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
+  int ret;
+
   if (!isOpen()) {
     if (!open()) {
     LOG_OPER("[%s] Could not open NetworkStore in handleMessages",
@@ -1949,45 +1951,31 @@ NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
 
   if (useConnPool) {
     if (serviceBased) {
-      if (!tryDummySend || g_connPool.send(serviceName, dummymessages)) {
-        if (g_connPool.send(serviceName, messages)) {
-          return (true);
-        }
+      if (!tryDummySend ||
+          ((ret = g_connPool.send(serviceName, dummymessages)) == CONN_OK)) {
+        ret = g_connPool.send(serviceName, messages);
       }
-      /*
-       * let us force reopen the store on the next try. on the next
-       * open the serverlist might get updated. we might get a
-       * connection to a new server.
-       */
-      close();
-      return (false);
-    }
-    if (!tryDummySend ||
-        g_connPool.send(remoteHost, remotePort, dummymessages)) {
-      return(g_connPool.send(remoteHost, remotePort, messages));
-    }
-    return (false);
-  }
-  if (unpooledConn) {
-    if (!tryDummySend || unpooledConn->send(dummymessages)) {
-      if (unpooledConn->send(messages)) {
-        return (true);
-      }
-      return unpooledConn->send(messages);
     } else {
-      LOG_OPER("[%s] Logic error: NetworkStore::handleMessages unpooledConn is NULL",
-               categoryHandled.c_str());
-      return false;
+      if (!tryDummySend ||
+          (ret = g_connPool.send(remoteHost, remotePort, dummymessages)) ==
+          CONN_OK) {
+        ret = g_connPool.send(remoteHost, remotePort, messages);
+      }
     }
-    if (serviceBased) {
-      // force reopen the store, try new service definitions
-      close();
+  } else if (unpooledConn) {
+    if (!tryDummySend ||
+        ((ret = unpooledConn->send(dummymessages)) == CONN_OK)) {
+      ret = unpooledConn->send(messages);
     }
-    return (false);
+  } else {
+    ret = CONN_FATAL;
+    LOG_OPER("[%s] Logic error: NetworkStore::handleMessages unpooledConn "
+        "is NULL", categoryHandled.c_str());
   }
-  LOG_OPER("[%s] Logic error: NetworkStore::handleMessages unpooledConn "
-      "is NULL", categoryHandled.c_str());
-  return (false);
+  if (ret == CONN_FATAL) {
+    close();
+  }
+  return (ret == CONN_OK);
 }
 
 void NetworkStore::flush() {

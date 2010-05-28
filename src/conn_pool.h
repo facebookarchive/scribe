@@ -24,6 +24,12 @@
 
 #include "common.h"
 
+/* return codes for ScribeConn and ConnPool */
+#define CONN_FATAL        (-1) /* fatal error. close everything */
+#define CONN_OK           (0)  /* success */
+#define CONN_TRANSIENT    (1)  /* transient error */
+
+// Basic scribe class to manage network connections. Used by network store
 class scribeConn {
  public:
   scribeConn(const std::string& host, unsigned long port, int timeout);
@@ -41,7 +47,7 @@ class scribeConn {
   bool isOpen();
   bool open();
   void close();
-  bool send(boost::shared_ptr<logentry_vector_t> messages);
+  int send(boost::shared_ptr<logentry_vector_t> messages);
 
  private:
   std::string connectionString();
@@ -82,15 +88,15 @@ class ConnPool {
   void close(const std::string& host, unsigned long port);
   void close(const std::string &service);
 
-  bool send(const std::string& host, unsigned long port,
+  int send(const std::string& host, unsigned long port,
             boost::shared_ptr<logentry_vector_t> messages);
-  bool send(const std::string &service,
+  int send(const std::string &service,
             boost::shared_ptr<logentry_vector_t> messages);
 
  private:
   bool openCommon(const std::string &key, boost::shared_ptr<scribeConn> conn);
   void closeCommon(const std::string &key);
-  bool sendCommon(const std::string &key,
+  int sendCommon(const std::string &key,
                   boost::shared_ptr<logentry_vector_t> messages);
 
  protected:

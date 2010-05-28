@@ -55,12 +55,12 @@ string ConnPool::makeKey(const string& hostname, unsigned long port) {
 }
 
 bool ConnPool::open(const string& hostname, unsigned long port, int timeout) {
-	return openCommon(makeKey(hostname, port),
+        return openCommon(makeKey(hostname, port),
                     shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout)));
 }
 
 bool ConnPool::open(const string &service, const server_vector_t &servers, int timeout) {
-	return openCommon(service,
+        return openCommon(service,
                     shared_ptr<scribeConn>(new scribeConn(service, servers, timeout)));
 }
 
@@ -72,12 +72,12 @@ void ConnPool::close(const string &service) {
   closeCommon(service);
 }
 
-bool ConnPool::send(const string& hostname, unsigned long port,
+int ConnPool::send(const string& hostname, unsigned long port,
                     shared_ptr<logentry_vector_t> messages) {
   return sendCommon(makeKey(hostname, port), messages);
 }
 
-bool ConnPool::send(const string &service,
+int ConnPool::send(const string &service,
                     shared_ptr<logentry_vector_t> messages) {
   return sendCommon(service, messages);
 }
@@ -141,20 +141,20 @@ void ConnPool::closeCommon(const string &key) {
   pthread_mutex_unlock(&mapMutex);
 }
 
-bool ConnPool::sendCommon(const string &key,
+int ConnPool::sendCommon(const string &key,
                           shared_ptr<logentry_vector_t> messages) {
   pthread_mutex_lock(&mapMutex);
   conn_map_t::iterator iter = connMap.find(key);
   if (iter != connMap.end()) {
     (*iter).second->lock();
     pthread_mutex_unlock(&mapMutex);
-    bool result = (*iter).second->send(messages);
+    int result = (*iter).second->send(messages);
     (*iter).second->unlock();
     return result;
   } else {
     LOG_OPER("send failed. No connection pool entry for <%s>", key.c_str());
     pthread_mutex_unlock(&mapMutex);
-    return false;
+    return (CONN_FATAL);
   }
 }
 
@@ -275,12 +275,13 @@ void scribeConn::close() {
   }
 }
 
-bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
+int
+scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
   bool fatal;
   int size = messages->size();
   if (!isOpen()) {
     if (!open()) {
-      return false;
+      return (CONN_FATAL);
     }
   }
 
@@ -302,12 +303,12 @@ bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
       g_Handler->incCounter("sent", size);
       LOG_OPER("Successfully sent <%d> messages to remote scribe server %s",
           size, connectionString().c_str());
-      return true;
+      return (CONN_OK);
     }
     fatal = false;
     LOG_OPER("Failed to send <%d> messages, remote scribe server %s "
         "returned error code <%d>", size, connectionString().c_str(),
-	(int) result);
+        (int) result);
   } catch (const TTransportException& ttx) {
     fatal = true;
     LOG_OPER("Failed to send <%d> messages to remote scribe server %s "
@@ -325,16 +326,17 @@ bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
    */
   if (serviceBased || fatal) {
     close();
+    return (CONN_FATAL);
   }
-  return false;
+  return (CONN_TRANSIENT);
 }
 
 std::string scribeConn::connectionString() {
-	if (serviceBased) {
-		return "<" + remoteHost + " Service: " + serviceName + ">";
-	} else {
-		char port[10];
-		snprintf(port, 10, "%lu", remotePort);
-		return "<" + remoteHost + ":" + string(port) + ">";
-	}
+        if (serviceBased) {
+                return "<" + remoteHost + " Service: " + serviceName + ">";
+        } else {
+                char port[10];
+                snprintf(port, 10, "%lu", remotePort);
+                return "<" + remoteHost + ":" + string(port) + ">";
+        }
 }
