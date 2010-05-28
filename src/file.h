@@ -42,7 +42,7 @@ class FileInterface {
   virtual bool write(const std::string& data) = 0;
   virtual void flush() = 0;
   virtual unsigned long fileSize() = 0;
-  virtual bool readNext(std::string& _return) = 0; // returns a line if unframed or a record if framed
+  virtual long readNext(std::string& _return) = 0;
   virtual void deleteFile() = 0;
   virtual void listImpl(const std::string& path, std::vector<std::string>& _return) = 0;
   virtual std::string getFrame(unsigned data_size) {return std::string();};
@@ -70,7 +70,7 @@ class StdFile : public FileInterface {
   bool write(const std::string& data);
   void flush();
   unsigned long fileSize();
-  bool readNext(std::string& _return);
+  long readNext(std::string& _return);
   void deleteFile();
   void listImpl(const std::string& path, std::vector<std::string>& _return);
   std::string getFrame(unsigned data_size);

@@ -178,8 +178,9 @@ void HdfsFile::listImpl(const std::string& path,
   }
 }
 
-bool HdfsFile::readNext(std::string& _return) {
-   return false;           // frames not yet supported
+long HdfsFile::readNext(std::string& _return) {
+  /* choose a reasonable value for loss */
+  return (-1000 * 1000 * 1000);
 }
 
 string HdfsFile::getFrame(unsigned data_length) {

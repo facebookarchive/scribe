@@ -593,7 +593,8 @@ FileStore::FileStore(StoreQueue* storeq,
                      bool multi_category, bool is_buffer_file)
   : FileStoreBase(storeq, category, "file", multi_category),
     isBufferFile(is_buffer_file),
-    addNewlines(false) {
+    addNewlines(false),
+    lost_bytes(0) {
 }
 
 FileStore::~FileStore() {
@@ -909,6 +910,10 @@ void FileStore::deleteOldest(struct tm* now) {
   }
   shared_ptr<FileInterface> deletefile = FileInterface::createFileInterface(fsType,
                                             makeFullFilename(index, now));
+  if (lost_bytes) {
+    g_Handler->incCounter(categoryHandled, "bytes lost", lost_bytes);
+    lost_bytes = 0;
+  }
   deletefile->deleteFile();
 }
 
@@ -951,6 +956,8 @@ bool FileStore::replaceOldest(boost::shared_ptr<logentry_vector_t> messages,
 bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages,
                            struct tm* now) {
 
+  long loss;
+
   int index = findOldestFile(makeBaseFilename(now));
   if (index < 0) {
     // This isn't an error. It's legit to call readOldest when there aren't any
@@ -970,7 +977,7 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
 
   uint32_t bsize = 0;
   std::string message;
-  while (infile->readNext(message)) {
+  while ((loss = infile->readNext(message)) > 0) {
     if (!message.empty()) {
       logentry_ptr_t entry = logentry_ptr_t(new LogEntry);
 
@@ -979,9 +986,11 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
         // get category without trailing \n
         entry->category = message.substr(0, message.length() - 1);
 
-        if (!infile->readNext(message)) {
-          LOG_OPER("[%s] category not stored with message <%s>",
-                   categoryHandled.c_str(), entry->category.c_str());
+        if ((loss = infile->readNext(message)) <= 0) {
+          LOG_OPER("[%s] category not stored with message <%s> "
+              "corruption?, incompatible config change?",
+              categoryHandled.c_str(), entry->category.c_str());
+          break;
         }
       } else {
         entry->category = categoryHandled;
@@ -994,9 +1003,14 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
       bsize += entry->message.size();
     }
   }
+  if (loss < 0) {
+    lost_bytes = -loss;
+  } else {
+    lost_bytes = 0;
+  }
   infile->close();
 
-  LOG_OPER("[%s] successfully read <%lu> entries of <%d> bytes from file <%s>",
+  LOG_OPER("[%s] read <%lu> entries of <%d> bytes from file <%s>",
         categoryHandled.c_str(), messages->size(), bsize, filename.c_str());
   return true;
 }
@@ -1793,7 +1807,7 @@ void NetworkStore::periodicCheck() {
     string host;
     uint32_t port;
     bool success = configmod->getHostFunc(categoryHandled, storeConf.get(), host, port);
-	  if (success && (host != remoteHost || port != remotePort)) {
+    if (success && (host != remoteHost || port != remotePort)) {
       // if it is different from the current configuration
       // then close and open again
       LOG_OPER("[%s] dynamic configred network store destination changed. old value:<%s:%lu>, new value:<%s:%lu>",
@@ -1801,7 +1815,7 @@ void NetworkStore::periodicCheck() {
                host.c_str(), (long unsigned)port);
       remoteHost = host;
       remotePort = port;
-		  close();
+      close();
     }
   }
 }
@@ -2112,14 +2126,12 @@ void BucketStore::createBuckets(pStoreConf configuration) {
     bucket_name = ss.str();
 
     if (!configuration->getStore(bucket_name, bucket_conf)) {
-      error_msg = "could not find bucket definition for " +
-	bucket_name;
+      error_msg = "could not find bucket definition for " + bucket_name;
       goto handle_error;
     }
 
     if (!bucket_conf->getString("type", type)) {
-      error_msg =
-	"store contained in a bucket store must have a type";
+      error_msg = "store contained in a bucket store must have a type";
       goto handle_error;
     }
 

@@ -23,8 +23,8 @@
 #include "file.h"
 #include "HdfsFile.h"
 
-// INITIAL_BUFFER_SIZE must always be >= UINT_SIZE
-#define INITIAL_BUFFER_SIZE 4096
+#define INITIAL_BUFFER_SIZE (64 * 1024)
+#define LARGE_BUFFER_SIZE (16 * INITIAL_BUFFER_SIZE) /* arbitrarily chosen */
 #define UINT_SIZE 4
 
 using namespace std;
@@ -137,50 +137,95 @@ void StdFile::flush() {
   }
 }
 
-bool StdFile::readNext(std::string& _return) {
+/*
+ * read the next frame in the file that is currently open. returns the
+ * body of the frame in _return.
+ *
+ * returns a negative number if it
+ * encounters any problem when reading from the file. The negative
+ * number is the number of bytes in the file that will not be read
+ * becuase of this problem (most likely corruption of file).
+ *
+ * returns 0 on end of file or when it encounters a frame of size 0
+ *
+ * On success it returns the number of bytes in the frame's body
+ *
+ * This function assumes that the file it is reading is framed.
+ */
+long
+StdFile::readNext(std::string& _return) {
+  long size;
+
+#define CALC_LOSS() do {                    \
+  int offset = file.tellg();                \
+  if (offset != -1) {                       \
+    size = -(fileSize() - offset);          \
+  } else {                                  \
+    size = -fileSize();                     \
+  }                                         \
+  if (size > 0) {                           \
+    /* loss size can't be positive          \
+     * choose a arbitrary but reasonable
+     * value for loss
+     */                                     \
+    size = -(1000 * 1000 * 1000);           \
+  }                                         \
+  /* loss size can be 0 */                  \
+}  while (0)
 
   if (!inputBuffer) {
     bufferSize = INITIAL_BUFFER_SIZE;
-    inputBuffer = new char[bufferSize];
+    inputBuffer = (char *) malloc(bufferSize);
+    if (inputBuffer == NULL) {
+      CALC_LOSS();
+      LOG_OPER("WARNING: nomem Data Loss loss %ld bytes in %s", size,
+          filename.c_str());
+     return (size);
+    }
   }
 
-  if (framed) {
-    unsigned size;
-    file.read(inputBuffer, UINT_SIZE);  // assumes INITIAL_BUFFER_SIZE > UINT_SIZE
-    if (file.good() && (size = unserializeUInt(inputBuffer))) {
+  file.read(inputBuffer, UINT_SIZE);
+  if (!file.good() || (size = unserializeUInt(inputBuffer)) == 0) {
+    /* end of file */
+    return (0);
+  }
+  // check if most signiifcant bit set - should never be set
+  if (size >= INT_MAX) {
+    /* Definitely corrupted. Stop reading any further */
+    CALC_LOSS();
+    LOG_OPER("WARNING: Corruption Data Loss %ld bytes in %s", size,
+        filename.c_str());
+    return (size);
+  }
 
-      // check if size is larger than half the max uint size
-      if (size >= (((unsigned)1) << (UINT_SIZE*8 - 1))) {
-        LOG_OPER("WARNING: attempting to read message of size %d bytes", size);
-
-        // Do not try to make bufferSize any larger than this or you might overflow
-        bufferSize = size;
-      }
-
-      while (size > bufferSize) {
-        bufferSize = 2 * bufferSize;
-        delete[] inputBuffer;
-        inputBuffer = new char[bufferSize];
-      }
-      file.read(inputBuffer, size);
-      if (file.good()) {
-        _return.assign(inputBuffer, size);
-        return true;
-      } else {
-        int offset = file.tellg();
-        LOG_OPER("ERROR: Failed to read file %s at offset %d",
-                 filename.c_str(), offset);
-        return false;
-      }
+  if (size > bufferSize) {
+    bufferSize = ((size + INITIAL_BUFFER_SIZE - 1) / INITIAL_BUFFER_SIZE) *
+        INITIAL_BUFFER_SIZE;
+    free(inputBuffer);
+    inputBuffer = (char *) malloc(bufferSize);
+    if (bufferSize > LARGE_BUFFER_SIZE) {
+      LOG_OPER("WARNING: allocating large buffer Corruption? %d", bufferSize);
     }
+  }
+  if (inputBuffer == NULL) {
+    CALC_LOSS();
+    LOG_OPER("WARNING: nomem Corruption? Data Loss %ld bytes in %s", size,
+        filename.c_str());
+    return (size);
+  }
+  file.read(inputBuffer, size);
+  if (file.good()) {
+    _return.assign(inputBuffer, size);
   } else {
-    file.getline(inputBuffer, bufferSize);
-    if (file.good()) {
-      _return = inputBuffer;
-      return true;
-    }
+    CALC_LOSS();
+    LOG_OPER("WARNING: Data Loss %ld bytes in %s", size, filename.c_str());
   }
-  return false;
+  if (bufferSize > LARGE_BUFFER_SIZE) {
+    free(inputBuffer);
+    inputBuffer = NULL;
+  }
+  return (size);
+#undef CALC_LOSS
 }
 
 unsigned long StdFile::fileSize() {
