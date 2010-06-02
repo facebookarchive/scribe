@@ -95,6 +95,11 @@ class strhash {
   static uint32_t hash32(const char *s);
 };
 
+/*
+ * Starting a scribe server.
+ */
+void startServer();
+
 } // !namespace scribe
 
 #endif // SCRIBE_ENV

@@ -24,16 +24,14 @@
 #include "common.h"
 #include "scribe_server.h"
 
-using namespace apache::thrift;
-using namespace apache::thrift::protocol;
-using namespace apache::thrift::transport;
-using namespace apache::thrift::server;
 using namespace apache::thrift::concurrency;
 
 using namespace facebook::fb303;
+using namespace facebook;
 
 using namespace scribe::thrift;
 using namespace std;
+
 using boost::shared_ptr;
 
 shared_ptr<scribeHandler> g_Handler;
@@ -114,38 +112,7 @@ int main(int argc, char **argv) {
     g_Handler = shared_ptr<scribeHandler>(new scribeHandler(port, config_file));
     g_Handler->initialize();
 
-    shared_ptr<TProcessor> processor(new scribeProcessor(g_Handler));
-    /* This factory is for binary compatibility. */
-    shared_ptr<TProtocolFactory>
-      binaryProtocolFactory(new TBinaryProtocolFactory(0, 0, false, false));
-    shared_ptr<ThreadManager> thread_manager;
-
-    if (g_Handler->numThriftServerThreads > 1) {
-      // create a ThreadManager to process incoming calls
-      thread_manager = ThreadManager::
-        newSimpleThreadManager(g_Handler->numThriftServerThreads);
-
-      shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
-      thread_manager->threadFactory(thread_factory);
-      thread_manager->start();
-    }
-
-    shared_ptr<TNonblockingServer> server(new TNonblockingServer(processor,
-        binaryProtocolFactory, g_Handler->port, thread_manager));
-    g_Handler->setServer(server);
-
-    LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
-    fflush(stderr);
-
-    // throttle concurrent connections
-    unsigned long mconn = g_Handler->getMaxConn();
-    if (mconn > 0) {
-      LOG_OPER("Throttle max_conn to %lu", mconn);
-      server->setMaxConnections(mconn);
-      server->setOverloadAction(T_OVERLOAD_CLOSE_ON_ACCEPT);
-    }
-
-    server->serve();
+    scribe::startServer(); // never returns
 
   } catch(const std::exception& e) {
     LOG_OPER("Exception in main: %s", e.what());

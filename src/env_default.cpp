@@ -24,6 +24,13 @@
 #include "scribe/src/common.h"
 #include "scribe/src/scribe_server.h"
 
+using namespace apache::thrift;
+using namespace apache::thrift::protocol;
+using namespace apache::thrift::transport;
+using namespace apache::thrift::server;
+using namespace apache::thrift::concurrency;
+
+using namespace scribe::thrift;
 using namespace scribe::concurrency;
 
 using boost::shared_ptr;
@@ -83,4 +90,50 @@ uint32_t scribe::strhash::hash32(const char *s) {
     hash = ((hash << 5) + hash) + c; // hash * 33 + c
   }
   return hash;
+}
+
+/*
+ * Starting a scribe server.
+ */
+// note: this function uses global g_Handler.
+void scribe::startServer() {
+  boost::shared_ptr<TProcessor> processor(new scribeProcessor(g_Handler));
+  /* This factory is for binary compatibility. */
+  boost::shared_ptr<TProtocolFactory> protocol_factory(
+    new TBinaryProtocolFactory(0, 0, false, false)
+  );
+  boost::shared_ptr<ThreadManager> thread_manager;
+
+  if (g_Handler->numThriftServerThreads > 1) {
+    // create a ThreadManager to process incoming calls
+    thread_manager = ThreadManager::newSimpleThreadManager(
+      g_Handler->numThriftServerThreads
+    );
+
+    shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
+    thread_manager->threadFactory(thread_factory);
+    thread_manager->start();
+  }
+
+  shared_ptr<TNonblockingServer> server(new TNonblockingServer(
+                                          processor,
+                                          protocol_factory,
+                                          g_Handler->port,
+                                          thread_manager
+                                        ));
+  g_Handler->setServer(server);
+
+  LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
+  fflush(stderr);
+
+  // throttle concurrent connections
+  unsigned long mconn = g_Handler->getMaxConn();
+  if (mconn > 0) {
+    LOG_OPER("Throttle max_conn to %lu", mconn);
+    server->setMaxConnections(mconn);
+    server->setOverloadAction(T_OVERLOAD_CLOSE_ON_ACCEPT);
+  }
+
+  server->serve();
+  // this function never returns
 }
