@@ -42,59 +42,43 @@
     fprintf(stderr,"[%s] " #format_string " \n", dbgtime,##__VA_ARGS__); \
   }
 
+
 namespace scribe {
 
 /*
  * Network based configuration and directory service
  */
 
-class network_config {
- public:
+namespace network_config {
   // gets a vector of machine/port pairs for a named service
   // returns true on success
-  static bool getService(const std::string& serviceName,
+  bool getService(const std::string& serviceName,
                          const std::string& options,
-                         server_vector_t& _return) {
-    return false;
-  }
-};
+                         server_vector_t& _return);
+
+} // !namespace scribe::network_config
 
 /*
  * Concurrency mechanisms
  */
 
-class concurrency {
-public:
+namespace concurrency {
+  using apache::thrift::concurrency::ReadWriteMutex;
+
   // returns a new instance of read/write mutex.
   // you can choose different implementations based on your needs.
-  static boost::shared_ptr<apache::thrift::concurrency::ReadWriteMutex>
-  createReadWriteMutex() {
-    using apache::thrift::concurrency::ReadWriteMutex;
+  boost::shared_ptr<ReadWriteMutex> createReadWriteMutex();
 
-    return boost::shared_ptr<ReadWriteMutex>(new ReadWriteMutex());
-  }
-};
+} // !namespace scribe::concurrency
 
 /*
  * Time functions
  */
 
-class clock {
-public:
-  static unsigned long nowInMsec() {
-    // There is a minor race condition between the 2 calls below,
-    // but the chance is really small.
+namespace clock {
+  unsigned long nowInMsec();
 
-    // Get current time in timeval
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-
-    // Get current time in sec
-    time_t sec = time(NULL);
-
-    return ((unsigned long)sec) * 1000 + (tv.tv_usec / 1000);
-  }
-};
+} // !namespace scribe::clock
 
 /*
  * Hash functions
@@ -103,25 +87,12 @@ public:
 // You can probably find better hash functions than these
 class integerhash {
  public:
-  static uint32_t hash32(uint32_t key) {
-    return key;
-  }
+  static uint32_t hash32(uint32_t key);
 };
 
 class strhash {
  public:
-  static uint32_t hash32(const char *s) {
-    // Use the djb2 hash (http://www.cse.yorku.ca/~oz/hash.html)
-    if (s == NULL) {
-      return 0;
-    }
-    uint32_t hash = 5381;
-    int c;
-    while ((c = *s++)) {
-      hash = ((hash << 5) + hash) + c; // hash * 33 + c
-    }
-    return hash;
-  }
+  static uint32_t hash32(const char *s);
 };
 
 } // !namespace scribe

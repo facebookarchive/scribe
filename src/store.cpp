@@ -2457,7 +2457,7 @@ unsigned long BucketStore::bucketize(const std::string& message) {
     if (numBuckets == 0) {
       return 0;
     } else {
-      return (integerhash::hash32(id) % numBuckets) + 1;
+      return (scribe::integerhash::hash32(id) % numBuckets) + 1;
     }
   } else if (bucketType == random) {
     // return any random bucket
@@ -2497,7 +2497,7 @@ unsigned long BucketStore::bucketize(const std::string& message) {
         case key_hash:
         default:
           // Hashing by default.
-          return (strhash::hash32(key.c_str()) % numBuckets) + 1;
+          return (scribe::strhash::hash32(key.c_str()) % numBuckets) + 1;
           break;
       }
     }
