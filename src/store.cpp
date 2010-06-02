@@ -594,7 +594,7 @@ FileStore::FileStore(StoreQueue* storeq,
   : FileStoreBase(storeq, category, "file", multi_category),
     isBufferFile(is_buffer_file),
     addNewlines(false),
-    lost_bytes(0) {
+    lostBytes_(0) {
 }
 
 FileStore::~FileStore() {
@@ -910,9 +910,9 @@ void FileStore::deleteOldest(struct tm* now) {
   }
   shared_ptr<FileInterface> deletefile = FileInterface::createFileInterface(fsType,
                                             makeFullFilename(index, now));
-  if (lost_bytes) {
-    g_Handler->incCounter(categoryHandled, "bytes lost", lost_bytes);
-    lost_bytes = 0;
+  if (lostBytes_) {
+    g_Handler->incCounter(categoryHandled, "bytes lost", lostBytes_);
+    lostBytes_ = 0;
   }
   deletefile->deleteFile();
 }
@@ -1004,9 +1004,9 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
     }
   }
   if (loss < 0) {
-    lost_bytes = -loss;
+    lostBytes_ = -loss;
   } else {
-    lost_bytes = 0;
+    lostBytes_ = 0;
   }
   infile->close();
 

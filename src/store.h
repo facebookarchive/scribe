@@ -229,7 +229,7 @@ class FileStore : public FileStoreBase {
   // disallow copy, assignment, and empty construction
   FileStore(FileStore& rhs);
   FileStore& operator=(FileStore& rhs);
-  long lost_bytes;
+  long lostBytes_;
 };
 
 /*
