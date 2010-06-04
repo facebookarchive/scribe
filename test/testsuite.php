@@ -45,6 +45,7 @@ $ALL_TESTS = array(
 //  'categoriestest',
   'bucketupdater',
   'paramtest',
+  'twodefaulttest',
   //'reloadtest',
 );
 

@@ -210,9 +210,7 @@ void StoreQueue::threadMember() {
   time_t last_handle_messages;
   time(&last_handle_messages);
 
-  // initialize absolute timestamp
   struct timespec abs_timeout;
-  memset(&abs_timeout, 0, sizeof(struct timespec));
 
   bool stop = false;
   bool open = false;
@@ -245,11 +243,10 @@ void StoreQueue::threadMember() {
     }
 
     // handle periodic tasks
-    //
     time_t this_loop;
     time(&this_loop);
-    if (!stop && open && this_loop - last_periodic_check > checkPeriod) {
-      store->periodicCheck();
+    if (!stop && ((this_loop - last_periodic_check) >= checkPeriod)) {
+      if (open) store->periodicCheck();
       last_periodic_check = this_loop;
     }
 
@@ -261,7 +258,7 @@ void StoreQueue::threadMember() {
     // handle messages if stopping, enough time has passed, or queue is large
     //
     if (stop ||
-        (this_loop - last_handle_messages > maxWriteInterval) ||
+        (this_loop - last_handle_messages >= maxWriteInterval) ||
         msgQueueSize >= targetWriteSize) {
 
       if (failedMessages) {
@@ -292,10 +289,8 @@ void StoreQueue::threadMember() {
     if (!stop) {
       // set timeout to when we need to handle messages or do a periodic check
       abs_timeout.tv_sec = min(last_periodic_check + checkPeriod,
-                               last_handle_messages + maxWriteInterval);
-
-      // must wait until after this time
-      abs_timeout.tv_sec++;
+          last_handle_messages + maxWriteInterval);
+      abs_timeout.tv_nsec = 0;
 
       // wait until there's some work to do or we timeout
       pthread_mutex_lock(&hasWorkMutex);
@@ -348,6 +343,9 @@ void StoreQueue::configureInline(pStoreConf configuration) {
   configuration->getUnsignedLongLong("target_write_size", targetWriteSize);
   configuration->getUnsigned("max_write_interval",
                             (unsigned long&) maxWriteInterval);
+  if (maxWriteInterval == 0) {
+    maxWriteInterval = 1;
+  }
 
   string tmp;
   if (configuration->getString("must_succeed", tmp) && tmp == "no") {

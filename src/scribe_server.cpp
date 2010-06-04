@@ -560,6 +560,9 @@ void scribeHandler::initialize() {
     config.getUnsigned("max_msg_per_second", maxMsgPerSecond);
     config.getUnsignedLongLong("max_queue_size", maxQueueSize);
     config.getUnsigned("check_interval", checkPeriod);
+    if (checkPeriod == 0) {
+      checkPeriod = 1;
+    }
     config.getUnsigned("max_conn", maxConn);
 
     // If new_thread_per_category, then we will create a new thread/StoreQueue
