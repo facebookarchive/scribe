@@ -21,8 +21,8 @@
 // @author Avinash Lakshman
 // @author Anthony Giardullo
 
-#include "scribe/src/common.h"
-#include "scribe/src/scribe_server.h"
+#include "common.h"
+#include "scribe_server.h"
 
 using namespace apache::thrift;
 using namespace apache::thrift::protocol;
@@ -136,4 +136,12 @@ void scribe::startServer() {
 
   server->serve();
   // this function never returns
+}
+
+
+/*
+ * Stopping a scribe server.
+ */
+void scribe::stopServer() {
+  exit(0);
 }

@@ -21,13 +21,7 @@
 #ifndef SCRIBE_CONF_H
 #define SCRIBE_CONF_H
 
-#include <string>
-#include <vector>
-#include <queue>
-#include <iostream>
-#include <fstream>
-
-#include "src/gen-cpp/scribe.h"
+#include "common.h"
 
 /*
  * This class reads and parses a configuration

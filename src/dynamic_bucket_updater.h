@@ -20,11 +20,11 @@
 #ifndef SCRIBE_DYNAMIC_BUCKET_UPDATER_H
 #define SCRIBE_DYNAMIC_BUCKET_UPDATER_H
 
-#include <map>
 #include "common.h"
-#include "common/fb303/cpp/FacebookBase.h"
-#include "scribe/if/gen-cpp/BucketStoreMapping.h"
-#include "scribe/src/conf.h"
+#include "conf.h"
+
+using std::string;
+using std::map;
 
 /**
   * DynamicBucketUpdater updates a bucket store's bucket id to host:port
@@ -45,9 +45,9 @@ class DynamicBucketUpdater {
   // missing a bid mapping
   static const char *FB303_ERR_NOMAPPING;
 
-  static bool getHost(const string& category, const StoreConf* pconf, std::string& host, uint32_t& port);
+  static bool getHost(const std::string& category, const StoreConf* pconf, std::string& host, uint32_t& port);
 
-  static bool isConfigValid(const string& category, const StoreConf* pconf);
+  static bool isConfigValid(const std::string& category, const StoreConf* pconf);
 
   /**
     * Return host, port given a key and bucket id, bid, combination.
@@ -220,9 +220,11 @@ class DynamicBucketUpdater {
   CatBidToHostMap catMap_;
 
   void addStatValue(string name, uint64_t value) {
+#ifdef FACEBOOK
     if (fbBase_) {
       fbBase_->addStatValue(name, value);
     }
+#endif
   }
 
   // make singleton

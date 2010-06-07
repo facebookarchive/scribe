@@ -46,24 +46,6 @@
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/convenience.hpp>
 
-#include "thrift/protocol/TBinaryProtocol.h"
-#include "thrift/server/TNonblockingServer.h"
-#include "thrift/concurrency/ThreadManager.h"
-#include "thrift/concurrency/PosixThreadFactory.h"
-#include "thrift/concurrency/Mutex.h"
-#include "thrift/transport/TSocket.h"
-#include "thrift/transport/TSocketPool.h"
-#include "thrift/transport/TServerSocket.h"
-#include "thrift/transport/TTransportUtils.h"
-#include "thrift/transport/THttpClient.h"
-#include "thrift/transport/TFileTransport.h"
-#include "fb303/FacebookBase.h"
-
-#include "src/gen-cpp/scribe.h"
-
-typedef boost::shared_ptr<scribe::thrift::LogEntry> logentry_ptr_t;
-typedef std::vector<logentry_ptr_t> logentry_vector_t;
-typedef std::vector<std::pair<std::string, int> > server_vector_t;
 
 // For security reasons we can't release everything that's compiled
 // in at facebook. Other users might find this useful as well for

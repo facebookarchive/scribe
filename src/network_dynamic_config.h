@@ -20,7 +20,7 @@
 #ifndef SCRIBE_NETWORK_UPDATER_H
 #define SCRIBE_NETWORK_UPDATER_H
 
-#include "scribe/src/conf.h"
+#include "conf.h"
 
 // functional types for network dynamic updater validation and getHost calls
 typedef bool (*NetworkIsConfigValidFunc)(const std::string& category, const StoreConf* pconf);

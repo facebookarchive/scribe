@@ -24,13 +24,7 @@
 #ifndef SCRIBE_STORE_QUEUE_H
 #define SCRIBE_STORE_QUEUE_H
 
-#include <string>
-#include <queue>
-#include <vector>
-#include <pthread.h>
-
-#include "src/gen-cpp/scribe.h"
-#include "store.h"
+#include "common.h"
 
 class Store;
 
