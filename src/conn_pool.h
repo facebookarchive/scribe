@@ -24,6 +24,12 @@
 
 #include "common.h"
 
+/* return codes for ScribeConn and ConnPool */
+#define CONN_FATAL        (-1) /* fatal error. close everything */
+#define CONN_OK           (0)  /* success */
+#define CONN_TRANSIENT    (1)  /* transient error */
+
+// Basic scribe class to manage network connections. Used by network store
 class scribeConn {
  public:
   scribeConn(const std::string& host, unsigned long port, int timeout);
@@ -33,6 +39,7 @@ class scribeConn {
   void addRef();
   void releaseRef();
   unsigned getRef();
+  void setRef(unsigned);
 
   void lock();
   void unlock();
@@ -40,7 +47,7 @@ class scribeConn {
   bool isOpen();
   bool open();
   void close();
-  bool send(boost::shared_ptr<logentry_vector_t> messages);
+  int send(boost::shared_ptr<logentry_vector_t> messages);
 
  private:
   std::string connectionString();
@@ -53,8 +60,8 @@ class scribeConn {
 
   unsigned refCount;
 
-  bool smcBased;
-  std::string smcService;
+  bool serviceBased;
+  std::string serviceName;
   server_vector_t serverList;
   std::string remoteHost;
   unsigned long remotePort;
@@ -62,13 +69,13 @@ class scribeConn {
   pthread_mutex_t mutex;
 };
 
-// key is hostname:port or the smc_service
+// key is hostname:port or the service
 typedef std::map<std::string, boost::shared_ptr<scribeConn> > conn_map_t;
 
 // Scribe class to manage connection pooling
-// Maintains a map of (<host,port> or smc_service) to scribeConn class.
+// Maintains a map of (<host,port> or service) to scribeConn class.
 // used to ensure that there is only one connection from one particular
-// scribe server to any host,port or smc_service.
+// scribe server to any host,port or service.
 // see the global g_connPool in store.cpp
 class ConnPool {
  public:
@@ -81,15 +88,15 @@ class ConnPool {
   void close(const std::string& host, unsigned long port);
   void close(const std::string &service);
 
-  bool send(const std::string& host, unsigned long port,
+  int send(const std::string& host, unsigned long port,
             boost::shared_ptr<logentry_vector_t> messages);
-  bool send(const std::string &service,
+  int send(const std::string &service,
             boost::shared_ptr<logentry_vector_t> messages);
 
  private:
   bool openCommon(const std::string &key, boost::shared_ptr<scribeConn> conn);
   void closeCommon(const std::string &key);
-  bool sendCommon(const std::string &key,
+  int sendCommon(const std::string &key,
                   boost::shared_ptr<logentry_vector_t> messages);
 
  protected:

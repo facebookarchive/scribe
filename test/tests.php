@@ -15,7 +15,7 @@
 //
 // See accompanying file LICENSE or visit the Scribe site at:
 // http://developers.facebook.com/scribe/
-
+// put your thrift and scribe php root here
 $GLOBALS['THRIFT_ROOT'] = '/usr/local/thrift/php/thrift';
 $GLOBALS['SCRIBE_ROOT'] = '/usr/local/thrift/php/thrift/packages';
 
@@ -23,6 +23,95 @@ include_once $GLOBALS['SCRIBE_ROOT'].'/scribe.php';
 include_once $GLOBALS['THRIFT_ROOT'].'/protocol/TBinaryProtocol.php';
 include_once $GLOBALS['THRIFT_ROOT'].'/transport/TFramedTransport.php';
 include_once $GLOBALS['THRIFT_ROOT'].'/transport/TSocketPool.php';
+require_once $GLOBALS['SCRIBE_ROOT'].'/BucketStoreMapping.php';
+
+function reload_test($file) {
+  static $numTest = 0;
+  $numTest++;
+
+  echo "reload_test($file)\n";
+  $msg1 = new LogEntry;
+  $msg1->category = "reload";
+  $msg1->message = "msg{$numTest}";
+
+  $scribe_client = create_scribe_client();
+  scribe_Log_test(array($msg1), $scribe_client);
+  sleep(2);
+
+  // check
+  $cmd = "grep -q \"msg{$numTest}\" $file";
+  system($cmd, $retVal);
+  echo "$cmd => $retVal\n";
+
+  if ($retVal != 0) {
+    echo "Error: can't find \"msg{$numTest}\" in $file\n";
+  }
+  return $retVal == 0;
+}
+
+function bucketupdater_test($bid1Path,
+                            $bid2Path,
+                            $bid3Path) {
+  static $numTest = 0;
+  $numTest++;
+
+  // append /tmp/scribetest_/bucketupdater/ to all the paths
+  $bid1Path = "/tmp/scribetest_/bucketupdater/$bid1Path";
+  $bid2Path = "/tmp/scribetest_/bucketupdater/$bid2Path";
+  $bid3Path = "/tmp/scribetest_/bucketupdater/$bid3Path";
+
+  echo "bucketupdater_test($bid1Path, $bid2Path, $bid3Path)\n";
+  // bucket 1 message
+  $msg1 = new LogEntry;
+  $msg1->category = "bucketupdater";
+  $msg1->message = "0;test #{$numTest}\n";
+
+  // bucket 2 message
+  $msg2 = new LogEntry;
+  $msg2->category = "bucketupdater";
+  $msg2->message = "1;test #{$numTest}\n";
+
+  $scribe_client = create_scribe_client();
+  $ret = scribe_Log_test(array($msg1, $msg2), $scribe_client);
+  echo "scirbe log => $ret\n";
+  sleep(2);
+
+  // check
+  $cmd = "/bin/grep -q \"0;test #{$numTest}\" $bid1Path";
+  system($cmd, $retVal);
+  echo "$cmd => $retVal\n";
+
+  if ($retVal != 0) {
+    echo "Error: can't find \"2;test #{$numTest}\" in $bid1Path\n";
+    return false;
+  }
+
+  $cmd = "/bin/grep -q \"1;test #{$numTest}\" $bid2Path";
+  system($cmd, $retVal);
+  echo "$cmd => $retVal\n";
+
+  if ($retVal != 0) {
+    echo "Error: can't find \"1;test #{$numTest}\" in $bid2Path\n";
+  }
+
+  return $retVal == 0;
+}
+
+/**
+ * testing scribe configuration parameter inheritance.
+ */
+function param_test() {
+  $logs = array();
+  $msg = new LogEntry;
+  $msg->category = 'paramtest';
+  $msg->message = "paramtest";
+  $logs []= $msg;
+
+  $scribe_client = create_scribe_client();
+  $ret = scribe_Log_test($logs, $scribe_client);
+
+  print "Log returned: " . $ret . "\n";
+}
 
 function simple_test() {
   $messages = array();
@@ -36,15 +125,15 @@ function simple_test() {
   $messages []= $msg2;
   $msg3 = new LogEntry;
   $msg3->category = 'buckettest';
-  $msg3->message = '99	a key-value message with a non-printable delimiter\n';
+  $msg3->message = '99' . chr(1) . 'a key-value message with a non-printable delimiter\n';
   $messages []= $msg3;
   $msg4 = new LogEntry;
   $msg4->category = 'buckettest';
-  $msg4->message = '99	a different message in the same bucket\n';
+  $msg4->message = '99' . chr(1) . 'a different message in the same bucket\n';
   $messages []= $msg4;
   $msg5 = new LogEntry;
   $msg5->category = 'buckettest';
-  $msg5->message = '98	a different bucket\n';
+  $msg5->message = '98' . chr(1) . 'a different bucket\n';
   $messages []= $msg5;
 
   $scribe_client = create_scribe_client();
@@ -113,6 +202,53 @@ function strange_input_test() {
   print "Log returned: " . $ret . "\n";
 }
 
+/* Read file, $file line by line send to scribe at localhost:1463
+ * with a category name = $category each line becomes a message.
+ * messages are sent at a rate of $rate messages per second
+ */
+function file_cat($file, $category, $rate, $msg_per_call) {
+
+  $send_interval = $msg_per_call/$rate;
+
+  $scribe_client = create_scribe_client();
+
+  $lines = file($file);
+
+  $messages = array();
+  $msgs_since_send = 0;
+  $last_send_time = microtime(true);
+
+  foreach ($lines as $line_num => $line) {
+    $entry = new LogEntry;
+    $entry->category = $category;
+    $entry->message = $line;
+    $messages []= $entry;
+    ++$msgs_since_send;
+
+    if ($msgs_since_send >= $msg_per_call) {
+
+      $msgs_since_send = 0;
+      $ret = scribe_Log_test($messages, $scribe_client);
+      // Print_r($messages);
+      $messages = array();
+
+      $now = microtime(true);
+      $wait = $last_send_time + $send_interval - $now;
+      $last_send_time = $now;
+      if ($wait > 0) {
+        usleep($wait * 1000000);
+      }
+    }
+  }
+  $ret = scribe_Log_test($messages, $scribe_client);
+  // Print_r($messages);
+}
+
+
+/* Send a total of $total messages at the rate of $rate per second
+ * let messages have an avg_size of $avg_size
+ *
+ */
 function stress_test($category, $client_name, $rate, $total, $msg_per_call,
                      $avg_size, $num_categories) {
 
@@ -281,6 +417,34 @@ function make_message($client_name, $avg_size, $sequence, $random) {
 
   $message .= "\n";
   return $message;
+}
+
+function create_bucketupdater_client($host, $port) {
+  try {
+    // Set up the socket connections
+    print "creating socket pool\n";
+    $sock = new TSocketPool(array($host), array($port));
+    $sock->setDebug(0);
+    $sock->setSendTimeout(1000);
+    $sock->setRecvTimeout(2500);
+    $sock->setNumRetries(1);
+    $sock->setRandomize(false);
+    $sock->setAlwaysTryLast(true);
+    $trans = new TFramedTransport($sock);
+    $prot = new TBinaryProtocol($trans);
+
+    // Create the client
+    print "creating bucketupdater client\n";
+    $updater_client = new BucketStoreMappingClient($prot);
+
+    // Open the transport (we rely on PHP to close it at script termination)
+    print "opening transport\n";
+    $trans->open();
+  } catch (Exception $x) {
+    print "Unable to create bucket updater client, received exception: $x \n";
+    return null;
+  }
+  return $updater_client;
 }
 
 function create_scribe_client() {

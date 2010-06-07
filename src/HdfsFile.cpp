@@ -29,8 +29,9 @@ HdfsFile::HdfsFile(const std::string& name) : FileInterface(name, false), inputB
 
 HdfsFile::~HdfsFile() {
   if (fileSys) {
-    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
+    LOG_OPER("[hdfs] disconnecting fileSys for %s", filename.c_str());
     hdfsDisconnect(fileSys);
+    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
   }
   fileSys = 0;
   hfile = 0;
@@ -95,14 +96,15 @@ bool HdfsFile::isOpen() {
 void HdfsFile::close() {
   if (fileSys) {
     if (hfile) {
+      LOG_OPER("[hdfs] closing %s", filename.c_str());
       hdfsCloseFile(fileSys, hfile );
-      LOG_OPER("[hdfs] closed %s", filename.c_str());
     }
     hfile = 0;
 
     // Close the file system
-    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
+    LOG_OPER("[hdfs] disconnecting fileSys for %s", filename.c_str());
     hdfsDisconnect(fileSys);
+    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
     fileSys = 0;
   }
 }
@@ -167,12 +169,18 @@ void HdfsFile::listImpl(const std::string& path,
         }
       }
       hdfsFreeFileInfo(pHdfsFileInfo, numEntries);
+    // A NULL indicates error
+    } else {
+      throw std::runtime_error("hdfsListDirectory call failed");
     }
+  } else if (value == -1) {
+    throw std::runtime_error("hdfsExists call failed");
   }
 }
 
-bool HdfsFile::readNext(std::string& _return) {
-   return false;           // frames not yet supported
+long HdfsFile::readNext(std::string& _return) {
+  /* choose a reasonable value for loss */
+  return (-1000 * 1000 * 1000);
 }
 
 string HdfsFile::getFrame(unsigned data_length) {

@@ -1,0 +1,84 @@
+# scribe configuration
+#
+# This file specifies global key-value pairs as well as store
+# objects, which are surrounded by xml-like tags <store></store>
+#
+# Each store has a category and a type. The category must match the
+# category string used by the client code, and the type must be one of:
+# file, multifile, network, bucket, buffer, thriftfile, thriftmultifile
+#
+# The remainder of the store configuration depends on the type. The
+# copies of this file in source control should contain examples of
+# all possibles configuration items.
+#
+# Some types of stores include other stores, which are specified by
+# nested xml-like tags. These have specific names that depend on type.
+# For example a buffer store has a <primary> store and a <secondary>
+# store, which can be of any type, and are configured the same way
+# they would be in a top-level <store>. Note that nested stores don't
+# have a configured category, it is inherited from the top-level store.
+
+port=1456
+max_msg_per_second=1000000
+check_interval=1
+max_queue_size=100000000
+
+# DEFAULT
+<store>
+category=default
+type=buffer
+max_write_interval=1
+retry_interval=120
+buffer_send_rate=5
+must_succeed=yes
+adaptive_backoff=yes
+    <primary>
+    type=buffer
+    retry_interval=600
+    replay_buffer=no
+adaptive_backoff=yes
+
+        <primary>
+        type=file
+        fs_type=hdfs
+        file_path=hdfs://cluster1:9000/user/scribe
+        create_symlink=no
+        use_hostname_sub_directory=yes
+        base_filename=thisisoverwritten
+        max_size=1000000000
+        rotate_period=hourly
+        add_newlines=1
+        write_stats=no
+        rotate_on_reopen=yes
+        lzo_compression=1
+        lzo_block_size=10
+        sync_interval=10
+        </primary>
+
+        <secondary>
+        type=file
+        fs_type=hdfs
+        file_path=hdfs://cluster2:9000/user/scribe
+        create_symlink=no
+        use_hostname_sub_directory=yes
+        base_filename=thisisoverwritten
+        max_size=1000000000
+        rotate_period=hourly
+        add_newlines=1
+        write_stats=no
+        rotate_on_reopen=yes
+        lzo_compression=1
+        lzo_block_size=10
+        sync_interval=5
+        </secondary>
+
+    </primary>
+
+    <secondary>
+    type=file
+    file_path=/mnt/d0/scribe
+    base_filename=thisisoverwritten
+    max_size=40000000
+    </secondary>
+
+</store>

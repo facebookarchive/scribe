@@ -42,21 +42,43 @@
     fprintf(stderr,"[%s] " #format_string " \n", dbgtime,##__VA_ARGS__); \
   }
 
+
+namespace scribe {
+
 /*
  * Network based configuration and directory service
  */
 
-class network_config {
- public:
+namespace network_config {
   // gets a vector of machine/port pairs for a named service
   // returns true on success
-  static bool getService(const std::string& serviceName,
+  bool getService(const std::string& serviceName,
                          const std::string& options,
-                         server_vector_t& _return) {
-    return false;
-  }
-};
+                         server_vector_t& _return);
 
+} // !namespace scribe::network_config
+
+/*
+ * Concurrency mechanisms
+ */
+
+namespace concurrency {
+  using apache::thrift::concurrency::ReadWriteMutex;
+
+  // returns a new instance of read/write mutex.
+  // you can choose different implementations based on your needs.
+  boost::shared_ptr<ReadWriteMutex> createReadWriteMutex();
+
+} // !namespace scribe::concurrency
+
+/*
+ * Time functions
+ */
+
+namespace clock {
+  unsigned long nowInMsec();
+
+} // !namespace scribe::clock
 
 /*
  * Hash functions
@@ -65,16 +87,19 @@ class network_config {
 // You can probably find better hash functions than these
 class integerhash {
  public:
-  static uint32_t hash32(uint32_t key) {
-    return key;
-  }
+  static uint32_t hash32(uint32_t key);
 };
 
 class strhash {
  public:
-  static uint32_t hash32(const char *s) {
-    return 0;
-  }
+  static uint32_t hash32(const char *s);
 };
+
+/*
+ * Starting a scribe server.
+ */
+void startServer();
+
+} // !namespace scribe
 
 #endif // SCRIBE_ENV
