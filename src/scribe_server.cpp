@@ -460,6 +460,11 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages_const) {
   ResultCode result = TRY_LATER;
   vector <LogEntry> & messages = const_cast<vector<LogEntry>&> (messages_const);
 
+  // local variables to reduce accounting overhead
+  int64_t num_ignored = 0, num_admitted = 0, num_enqueued = 0;
+
+  stats.addCounter(StatCounters::SCRIBED_IN, messages.size());
+
   scribeHandlerLock->acquireRead();
 
   // this is a time that we have unmarshaled all messages.
@@ -484,6 +489,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages_const) {
     // disallow blank category from the start
     if ((*msg_iter).category.empty()) {
       incCounter("received blank category");
+      ++ num_ignored;
       continue;
     }
 
@@ -526,6 +532,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages_const) {
     if (store_list == NULL) {
       LOG_OPER("log entry has invalid category <%s>", category.c_str());
       incCounter(category, "received bad");
+      ++ num_ignored;
 
       continue;
     }
@@ -544,12 +551,24 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages_const) {
 
     // Log this message
     addMessage(*msg_iter, store_list);
+    num_enqueued += store_list->size();
+
+    if (store_list->empty()) {
+      ++ num_ignored;
+    } else {
+      ++ num_admitted;
+    }
   }
 
   result = OK;
 
  end:
   scribeHandlerLock->release();
+
+  stats.addCounter(StatCounters::SCRIBED_IGNORE, num_ignored);
+  stats.addCounter(StatCounters::SCRIBED_ADMIT,  num_admitted);
+  stats.addCounter(StatCounters::STORE_QUEUE_IN, num_enqueued);
+
   return result;
 }
 
@@ -622,6 +641,8 @@ void scribeHandler::reinitialize() {
 }
 
 void scribeHandler::initialize() {
+
+  stats.initCounters();
 
   // This clears out the error state, grep for setStatus below for details
   setStatus(STARTING);

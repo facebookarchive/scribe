@@ -82,7 +82,7 @@ AM_LDFLAGS = $(BOOST_LDFLAGS) $(BOOST_SYSTEM_LIB) $(BOOST_FILESYSTEM_LIB)
 if STATIC
 lib_LIBRARIES = libscribe.a libdynamicbucketupdater.a
 libscribe_a_SOURCES = gen-cpp/scribe.cpp gen-cpp/scribe_types.cpp gen-cpp/scribe_constants.cpp
-libdynamicbucketupdater_a_SOURCES = gen-cpp/BucketStoreMapping.cpp gen-cpp/bucketupdater_constants.cpp gen-cpp/bucketupdater_types.cpp 
+libdynamicbucketupdater_a_SOURCES = gen-cpp/BucketStoreMapping.cpp gen-cpp/bucketupdater_constants.cpp gen-cpp/bucketupdater_types.cpp
 INTERNAL_LIBS = libscribe.a libdynamicbucketupdater.a
 endif
 
@@ -98,7 +98,7 @@ endif
 
 # Binaries -- multiple progs can be defined.
 bin_PROGRAMS = scribed
-scribed_SOURCES = store.cpp store_queue.cpp conf.cpp file.cpp conn_pool.cpp scribe_server.cpp network_dynamic_config.cpp dynamic_bucket_updater.cpp $(FB_SOURCES) $(ENV_SOURCES)
+scribed_SOURCES = store.cpp store_queue.cpp conf.cpp file.cpp conn_pool.cpp stat_counters.cpp scribe_server.cpp $(FB_SOURCES) $(ENV_SOURCES)
 if USE_SCRIBE_HDFS
   scribed_SOURCES += HdfsFile.cpp
 endif

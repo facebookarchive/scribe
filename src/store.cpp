@@ -763,9 +763,12 @@ bool FileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
     if (!open()) {
       LOG_OPER("[%s] File failed to open FileStore::handleMessages()",
                categoryHandled.c_str());
+      g_Handler->stats.addCounter(StatCounters::FILE_OPEN_ERR, 1);
       return false;
     }
   }
+
+  g_Handler->stats.addCounter(StatCounters::FILE_IN, messages->size());
 
   // write messages to current file
   return writeMessages(messages);
@@ -919,9 +922,14 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
           LOG_OPER("[%s] File store failed to write (%lu) messages to file",
                    categoryHandled.c_str(), messages->size());
           setStatus("File write error");
+          g_Handler->stats.addCounter(StatCounters::FILE_WRITE_ERR, 1);
           success = false;
           break;
         }
+
+        g_Handler->stats.addCounter(StatCounters::FILE_WRITTEN, num_buffered);
+        g_Handler->stats.addCounter(StatCounters::FILE_WRITTEN_BYTES,
+                                    current_size_buffered);
 
         num_written += num_buffered;
         currentSize += current_size_buffered;
@@ -939,6 +947,7 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
   } catch (const std::exception& e) {
     LOG_OPER("[%s] File store failed to write. Exception: %s",
              categoryHandled.c_str(), e.what());
+    g_Handler->stats.addCounter(StatCounters::FILE_WRITE_ERR, 1);
     success = false;
   }
 
@@ -999,6 +1008,7 @@ bool FileStore::replaceOldest(boost::shared_ptr<logentry_vector_t> messages,
   } else {
     LOG_OPER("[%s] Failed to open file <%s> for writing and truncate",
              categoryHandled.c_str(), filename.c_str());
+    g_Handler->stats.addCounter(StatCounters::FILE_OPEN_ERR, 1);
     success = false;
   }
 
@@ -1029,6 +1039,7 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
   if (!infile->openRead()) {
     LOG_OPER("[%s] Failed to open file <%s> for reading",
             categoryHandled.c_str(), filename.c_str());
+    g_Handler->stats.addCounter(StatCounters::FILE_OPEN_ERR, 1);
     return false;
   }
 
@@ -1073,8 +1084,10 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
       bsize += entry->message.size();
     }
   }
+
   if (loss < 0) {
     lostBytes_ = -loss;
+    g_Handler->stats.addCounter(StatCounters::FILE_LOST_BYTES, lostBytes_);
   } else {
     lostBytes_ = 0;
   }
@@ -1082,6 +1095,10 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
 
   LOG_OPER("[%s] read <%lu> entries of <%d> bytes from file <%s>",
         categoryHandled.c_str(), messages->size(), bsize, filename.c_str());
+
+  g_Handler->stats.addCounter(StatCounters::FILE_READ, messages->size());
+  g_Handler->stats.addCounter(StatCounters::FILE_READ_BYTES, bsize);
+
   return true;
 }
 
@@ -1520,6 +1537,7 @@ bool BufferStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) 
       return true;
     } else {
       changeState(DISCONNECTED);
+      g_Handler->stats.addCounter(StatCounters::BUFFER_PRIMARY_ERR, 1);
     }
   }
 
@@ -1944,6 +1962,7 @@ bool NetworkStore::open() {
     LOG_OPER("[%s] Bad config - won't attempt to connect to <%s:%lu>",
         categoryHandled.c_str(), remoteHost.c_str(), remotePort);
     setStatus("Bad config - invalid location for remote server");
+
     return false;
   } else {
     if (useConnPool) {
@@ -2021,9 +2040,13 @@ NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
     if (!open()) {
     LOG_OPER("[%s] Could not open NetworkStore in handleMessages",
              categoryHandled.c_str());
+    g_Handler->stats.addCounter(StatCounters::NETWORK_DISCONNECT_ERR, 1);
+
     return false;
     }
   }
+
+  g_Handler->stats.addCounter(StatCounters::NETWORK_IN, messages->size());
 
   bool tryDummySend = shouldSendDummy(messages);
   boost::shared_ptr<logentry_vector_t> dummymessages(new logentry_vector_t);
@@ -2054,6 +2077,13 @@ NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   if (ret == CONN_FATAL) {
     close();
   }
+
+  if (ret == CONN_OK) {
+    g_Handler->stats.addCounter(StatCounters::NETWORK_SENT, messages->size());
+  }
+  g_Handler->stats.addCounter(StatCounters::NETWORK_DISCONNECT_ERR,
+                              ret == CONN_FATAL ? 1 : 0);
+
   return (ret == CONN_OK);
 }
 

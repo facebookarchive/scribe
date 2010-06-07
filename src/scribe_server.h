@@ -26,6 +26,7 @@
 
 #include "store.h"
 #include "store_queue.h"
+#include "stat_counters.h"
 
 typedef std::vector<boost::shared_ptr<StoreQueue> > store_list_t;
 typedef std::map<std::string, boost::shared_ptr<store_list_t> > category_map_t;
@@ -81,6 +82,9 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void reportLatencyHop(const std::string& category, long ms);
   // Writer Latency is the latency from receiving the message to writing it out
   void reportLatencyWriter(const std::string& category, long ms);
+
+  // fb303 statistic counters
+  StatCounters stats;
 
  private:
   boost::shared_ptr<apache::thrift::server::TNonblockingServer> server;
@@ -143,4 +147,5 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
                      long ms);
 };
 extern boost::shared_ptr<scribeHandler> g_Handler;
+
 #endif // SCRIBE_SERVER_H
