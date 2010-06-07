@@ -23,7 +23,7 @@ include_once $GLOBALS['SCRIBE_ROOT'].'/scribe.php';
 include_once $GLOBALS['THRIFT_ROOT'].'/protocol/TBinaryProtocol.php';
 include_once $GLOBALS['THRIFT_ROOT'].'/transport/TFramedTransport.php';
 include_once $GLOBALS['THRIFT_ROOT'].'/transport/TSocketPool.php';
-require_once $GLOBALS['SCRIBE_ROOT'].'/BucketStoreMapping.php';
+require_once $GLOBALS['SCRIBE_ROOT'].'/bucketupdater/BucketStoreMapping.php';
 
 function reload_test($file) {
   static $numTest = 0;

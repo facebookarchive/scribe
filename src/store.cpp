@@ -27,7 +27,6 @@
 #include <algorithm>
 #include "common.h"
 #include "scribe_server.h"
-#include "thrift/lib/cpp/transport/TSimpleFileTransport.h"
 #include "network_dynamic_config.h"
 
 using namespace std;

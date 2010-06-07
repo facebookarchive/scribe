@@ -22,7 +22,7 @@
 import sys
 
 #make this work for facebook environment too
-isFacebook = 1
+isFacebook = 0
 if (isFacebook == 1):
     # put your own path here!
     sys.path.insert(0, '/mytrunk/fbcode-test/common/fb303/scripts')

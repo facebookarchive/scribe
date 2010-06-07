@@ -17,8 +17,8 @@
 //
 // @author John Song
 
-#include "scribe/src/network_dynamic_config.h"
-#include "scribe/src/dynamic_bucket_updater.h"
+#include "network_dynamic_config.h"
+#include "dynamic_bucket_updater.h"
 
 static NetworkDynamicConfigMod netConfigMods[] = {
   {

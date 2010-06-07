@@ -1,8 +1,7 @@
 #include <strstream>
 #include <iostream>
-#include "thrift/lib/cpp/transport/TBufferTransports.h"
-#include "scribe/src/dynamic_bucket_updater.h"
-#include "scribe/src/scribe_server.h"
+#include "dynamic_bucket_updater.h"
+#include "scribe_server.h"
 
 using namespace std;
 using namespace apache::thrift::concurrency;
@@ -11,7 +10,7 @@ using namespace apache::thrift::transport;
 using namespace facebook;
 using namespace facebook::fb303;
 using namespace scribe::thrift;
-
+using boost::shared_ptr;
 extern shared_ptr<scribeHandler> g_Handler;
 
 DynamicBucketUpdater* DynamicBucketUpdater::instance_ = NULL;
@@ -418,6 +417,7 @@ DynamicBucketUpdater* DynamicBucketUpdater::getInstance(
   * Setup fb303 counters.
   */
 void DynamicBucketUpdater::initFb303Counters() {
+#ifdef FACEBOOK
   if (fbBase_) {
     // initialize fb303 time series based counters
     fbBase_->addStatExportType(
@@ -431,4 +431,5 @@ void DynamicBucketUpdater::initFb303Counters() {
     fbBase_->addStatExportType(
         DynamicBucketUpdater::FB303_ERR_NOMAPPING, stats::SUM);
   }
+#endif
 }

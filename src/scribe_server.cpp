@@ -514,6 +514,7 @@ void scribeHandler::shutdown() {
   stopStores();
   // calling stop to allow thrift to clean up client states and exit
   server->stop();
+  scribe::stopServer();
 }
 
 void scribeHandler::reinitialize() {
