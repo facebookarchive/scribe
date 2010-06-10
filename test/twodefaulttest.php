@@ -28,13 +28,13 @@ require_once 'testutil.php';
 $success = true;
 
 $pid = scribe_start('twodefaulttest', $GLOBALS['SCRIBE_BIN'],
-                    $GLOBALS['SCRIBE_PORT'],
-                    'scribe.conf.twodefaulttest');
+  $GLOBALS['SCRIBE_PORT'],
+  'scribe.conf.twodefaulttest');
 
 // write 10k messages to category test (handled by default store)
 print("test writing 10k messages to category test\n");
 stress_test('test', 'client1', 1000, 10000, 20, 100, 1);
-sleep(1);
+sleep(2);
 $results = resultChecker('/tmp/scribetest_/test', 'test-', 'client1');
 
 if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
@@ -51,95 +51,101 @@ if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
 
 
 // write another 10k messages to category test (should see 1 out of order)
-print("test writing another 10k messages (will see 1 out of order)\n");
-stress_test('test', 'client1', 1000, 10000, 20, 100, 1);
-sleep(1);
-$results = resultChecker('/tmp/scribetest_/test', 'test-', 'client1');
+if ($success == true) {
+  print("test writing another 10k messages (will see 1 out of order)\n");
+  stress_test('test', 'client1', 1000, 10000, 20, 100, 1);
+  sleep(2);
+  $results = resultChecker('/tmp/scribetest_/test', 'test-', 'client1');
 
-if ($results["count"] != 20000 || $results["out_of_order"] != 1) {
-  $success = false;
+  if ($results["count"] != 20000 || $results["out_of_order"] != 1) {
+    $success = false;
+  }
+  $results = resultChecker('/tmp/scribe_test_/test', 'test-', 'client1');
+
+  if ($results["count"] != 20000 || $results["out_of_order"] != 1) {
+    $success = false;
+  }
 }
-$results = resultChecker('/tmp/scribe_test_/test', 'test-', 'client1');
-
-if ($results["count"] != 20000 || $results["out_of_order"] != 1) {
-  $success = false;
-}
-
 // write 200k messages to category test using different client name
-print("test writing 200k more messages to category test\n");
-stress_test('test', 'client2', 10000, 200000, 50, 100, 1);
-sleep(1);
-$results = resultChecker('/tmp/scribetest_/test', 'test-', 'client2');
+if ($success == true) {
+  print("test writing 200k more messages to category test\n");
+  stress_test('test', 'client2', 10000, 200000, 50, 100, 1);
+  sleep(2);
+  $results = resultChecker('/tmp/scribetest_/test', 'test-', 'client2');
 
-if ($results["count"] != 200000 || $results["out_of_order"] != 0) {
-  $success = false;
+  if ($results["count"] != 200000 || $results["out_of_order"] != 0) {
+    $success = false;
+  }
+  $results = resultChecker('/tmp/scribe_test_/test', 'test-', 'client2');
+
+  if ($results["count"] != 200000 || $results["out_of_order"] != 0) {
+    $success = false;
+  }
 }
-$results = resultChecker('/tmp/scribe_test_/test', 'test-', 'client2');
-
-if ($results["count"] != 200000 || $results["out_of_order"] != 0) {
-  $success = false;
-}
-
 // write 10k messages to category tps (handled by named store)
-print("test writing 10k messages to category tps\n");
-stress_test('tps', 'client1', 1000, 10000, 200, 100, 1);
-sleep(1);
-$results = resultChecker('/tmp/scribetest_/tps', 'tps-', 'client1');
+if ($success == true) {
+  print("test writing 10k messages to category tps\n");
+  stress_test('tps', 'client1', 1000, 10000, 200, 100, 1);
+  sleep(2);
+  $results = resultChecker('/tmp/scribetest_/tps', 'tps-', 'client1');
 
-if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
-  $success = false;
+  if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
+    $success = false;
+  }
+  $results = resultChecker('/tmp/scribe_test_/tps', 'tps-', 'client1');
+
+  if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
+    $success = false;
+  }
 }
-$results = resultChecker('/tmp/scribe_test_/tps', 'tps-', 'client1');
-
-if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
-  $success = false;
-}
-
 // write 10k messages to category foodoo (handled by prefix store)
-print("test writing 10k messages to category foodoo\n");
-stress_test('foodoo', 'client1', 10000, 10000, 20, 100, 1);
-sleep(1);
-$results = resultChecker('/tmp/scribetest_/foodoo', 'foodoo-', 'client1');
+if ($success == true) {
+  print("test writing 10k messages to category foodoo\n");
+  stress_test('foodoo', 'client1', 10000, 10000, 20, 100, 1);
+  sleep(2);
+  $results = resultChecker('/tmp/scribetest_/foodoo', 'foodoo-', 'client1');
 
-if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
-  $success = false;
+  if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
+    $success = false;
+  }
+  $results = resultChecker('/tmp/scribe_test_/foodoo', 'foodoo-', 'client1');
+
+  if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
+    $success = false;
+  }
 }
-$results = resultChecker('/tmp/scribe_test_/foodoo', 'foodoo-', 'client1');
-
-if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
-  $success = false;
-}
-
 // write 10k messages to category rock (handled by categories prefix store)
-print("test writing 100k messages to category rock\n");
-stress_test('rock', 'client1', 100, 10000, 20, 100, 1);
-sleep(1);
-$results = resultChecker('/tmp/scribetest_/rock', 'rock-', 'client1');
+if ($success == true) {
+  print("test writing 100k messages to category rock\n");
+  stress_test('rock', 'client1', 100, 10000, 20, 100, 1);
+  sleep(2);
+  $results = resultChecker('/tmp/scribetest_/rock', 'rock-', 'client1');
 
-if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
-  $success = false;
+  if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
+    $success = false;
+  }
+  $results = resultChecker('/tmp/scribe_test_/rock', 'rock-', 'client1');
+
+  if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
+    $success = false;
+  }
 }
-$results = resultChecker('/tmp/scribe_test_/rock', 'rock-', 'client1');
-
-if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
-  $success = false;
-}
-
 // write 10k messages to category paper (handled by categories store)
-print("test writing 10k messages to category paper\n");
-stress_test('paper', 'client1', 1000, 10000, 20, 500, 1);
-sleep(1);
-$results = resultChecker('/tmp/scribetest_/paper', 'paper-', 'client1');
+if ($success == true) {
+  print("test writing 10k messages to category paper\n");
+  stress_test('paper', 'client1', 1000, 10000, 20, 500, 1);
+  sleep(2);
+  $results = resultChecker('/tmp/scribetest_/paper', 'paper-', 'client1');
 
-if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
-  $success = false;
+  if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
+    $success = false;
+  }
+  $results = resultChecker('/tmp/scribe_test_/paper', 'paper-', 'client1');
+
+  if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
+    $success = false;
+  }
 }
-$results = resultChecker('/tmp/scribe_test_/paper', 'paper-', 'client1');
-
-if ($results["count"] != 10000 || $results["out_of_order"] != 0) {
-  $success = false;
-}
-
 if (!scribe_stop($GLOBALS['SCRIBE_CTRL'], $GLOBALS['SCRIBE_PORT'], $pid)) {
   print("ERROR: could not stop scribe\n");
   $success = false;

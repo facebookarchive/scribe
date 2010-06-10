@@ -113,36 +113,6 @@ function param_test() {
   print "Log returned: " . $ret . "\n";
 }
 
-function simple_test() {
-  $messages = array();
-  $msg = new LogEntry;
-  $msg->category = 'scribe_test';
-  $msg->message = "this is a message\n";
-  $messages []= $msg;
-  $msg2 = new LogEntry;
-  $msg2->category = 'scribe_test';
-  $msg2->message = "and a binary" . chr(0) . chr(1) . " message\n";
-  $messages []= $msg2;
-  $msg3 = new LogEntry;
-  $msg3->category = 'buckettest';
-  $msg3->message = '99' . chr(1) . 'a key-value message with a non-printable delimiter\n';
-  $messages []= $msg3;
-  $msg4 = new LogEntry;
-  $msg4->category = 'buckettest';
-  $msg4->message = '99' . chr(1) . 'a different message in the same bucket\n';
-  $messages []= $msg4;
-  $msg5 = new LogEntry;
-  $msg5->category = 'buckettest';
-  $msg5->message = '98' . chr(1) . 'a different bucket\n';
-  $messages []= $msg5;
-
-  $scribe_client = create_scribe_client();
-  $ret = scribe_Log_test($messages, $scribe_client);
-
-  print "Log returned: " . $ret . "\n";
-}
-
-
 function bucket_test() {
   $messages = array();
   $msg = new LogEntry;
