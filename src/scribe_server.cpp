@@ -538,89 +538,80 @@ void scribeHandler::initialize() {
   bool enough_config_to_run = true;
   int numstores = 0;
 
+  // Get the config data and parse it.
+  // If a file has been explicitly specified we'll take the conf from there,
+  // which is very handy for testing and one-off applications.
+  // Otherwise we'll try to get it from the service management console and
+  // fall back to a default file location. This is for production.
+  StoreConf localconfig;
+  string config_file;
 
-  try {
-    // Get the config data and parse it.
-    // If a file has been explicitly specified we'll take the conf from there,
-    // which is very handy for testing and one-off applications.
-    // Otherwise we'll try to get it from the service management console and
-    // fall back to a default file location. This is for production.
-    StoreConf localconfig;
-    string config_file;
+  if (configFilename.empty()) {
+    config_file = DEFAULT_CONF_FILE_LOCATION;
+  } else {
+    config_file = configFilename;
+  }
+  localconfig.parseConfig(config_file);
+  // overwrite the current StoreConf
+  config = localconfig;
 
-    if (configFilename.empty()) {
-      config_file = DEFAULT_CONF_FILE_LOCATION;
-    } else {
-      config_file = configFilename;
+  // load the global config
+  config.getUnsigned("max_msg_per_second", maxMsgPerSecond);
+  config.getUnsignedLongLong("max_queue_size", maxQueueSize);
+  config.getUnsigned("check_interval", checkPeriod);
+  if (checkPeriod == 0) {
+    checkPeriod = 1;
+  }
+  config.getUnsigned("max_conn", maxConn);
+
+  // If new_thread_per_category, then we will create a new thread/StoreQueue
+  // for every unique message category seen.  Otherwise, we will just create
+  // one thread for each top-level store defined in the config file.
+  string temp;
+  config.getString("new_thread_per_category", temp);
+  if (0 == temp.compare("no")) {
+    newThreadPerCategory = false;
+  } else {
+    newThreadPerCategory = true;
+  }
+
+  unsigned long int old_port = port;
+  config.getUnsigned("port", port);
+  if (old_port != 0 && port != old_port) {
+    LOG_OPER("port %lu from conf file overriding old port %lu", port, old_port);
+  }
+  if (port <= 0) {
+    throw runtime_error("No port number configured");
+  }
+
+  // check if config sets the size to use for the ThreadManager
+  unsigned long int num_threads;
+  if (config.getUnsigned("num_thrift_server_threads", num_threads)) {
+    numThriftServerThreads = (size_t) num_threads;
+
+    if (numThriftServerThreads <= 0) {
+      LOG_OPER("invalid value for num_thrift_server_threads: %lu",
+          num_threads);
+      throw runtime_error("invalid value for num_thrift_server_threads");
     }
-    localconfig.parseConfig(config_file);
-    // overwrite the current StoreConf
-    config = localconfig;
+  }
 
-    // load the global config
-    config.getUnsigned("max_msg_per_second", maxMsgPerSecond);
-    config.getUnsignedLongLong("max_queue_size", maxQueueSize);
-    config.getUnsigned("check_interval", checkPeriod);
-    if (checkPeriod == 0) {
-      checkPeriod = 1;
+
+  // Build a new map of stores, and move stores from the old map as
+  // we find them in the config file. Any stores left in the old map
+  // at the end will be deleted.
+  std::vector<pStoreConf> store_confs;
+  config.getAllStores(store_confs);
+  for (std::vector<pStoreConf>::iterator iter = store_confs.begin();
+      iter != store_confs.end();
+      ++iter) {
+    pStoreConf store_conf = (*iter);
+
+    bool success = configureStore(store_conf, &numstores);
+
+    if (!success) {
+      perfect_config = false;
     }
-    config.getUnsigned("max_conn", maxConn);
-
-    // If new_thread_per_category, then we will create a new thread/StoreQueue
-    // for every unique message category seen.  Otherwise, we will just create
-    // one thread for each top-level store defined in the config file.
-    string temp;
-    config.getString("new_thread_per_category", temp);
-    if (0 == temp.compare("no")) {
-      newThreadPerCategory = false;
-    } else {
-      newThreadPerCategory = true;
-    }
-
-    unsigned long int old_port = port;
-    config.getUnsigned("port", port);
-    if (old_port != 0 && port != old_port) {
-      LOG_OPER("port %lu from conf file overriding old port %lu", port, old_port);
-    }
-    if (port <= 0) {
-      throw runtime_error("No port number configured");
-    }
-
-    // check if config sets the size to use for the ThreadManager
-    unsigned long int num_threads;
-    if (config.getUnsigned("num_thrift_server_threads", num_threads)) {
-      numThriftServerThreads = (size_t) num_threads;
-
-      if (numThriftServerThreads <= 0) {
-        LOG_OPER("invalid value for num_thrift_server_threads: %lu",
-                 num_threads);
-        throw runtime_error("invalid value for num_thrift_server_threads");
-      }
-    }
-
-
-    // Build a new map of stores, and move stores from the old map as
-    // we find them in the config file. Any stores left in the old map
-    // at the end will be deleted.
-    std::vector<pStoreConf> store_confs;
-    config.getAllStores(store_confs);
-    for (std::vector<pStoreConf>::iterator iter = store_confs.begin();
-         iter != store_confs.end();
-         ++iter) {
-        pStoreConf store_conf = (*iter);
-
-        bool success = configureStore(store_conf, &numstores);
-
-        if (!success) {
-          perfect_config = false;
-        }
-    }
-  } catch(const std::exception& e) {
-    string errormsg("Bad config - exception: ");
-    errormsg += e.what();
-    setStatusDetails(errormsg);
-    perfect_config = false;
-    enough_config_to_run = false;
   }
 
   if (numstores) {
@@ -637,7 +628,6 @@ void scribeHandler::initialize() {
     deleteCategoryMap(categories);
     deleteCategoryMap(category_prefixes);
   }
-
 
   if (!perfect_config || !enough_config_to_run) {
     // perfect should be a subset of enough, but just in case
