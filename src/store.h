@@ -325,9 +325,9 @@ class BufferStore : public Store {
   bool   replayBuffer;            // whether to send buffers from
                                   // secondary store to primary
   bool adaptiveBackoff;           // Adaptive backoff mode indicator
-  unsigned long minRetryInterval; // The min the retryInterval can become
-  unsigned long maxRetryInterval; // The max the retryInterval can become
-  unsigned long maxRandomOffset;  // The max random offset added
+  time_t minRetryInterval;        // The min the retryInterval can become
+  time_t maxRetryInterval;        // The max the retryInterval can become
+  time_t maxRandomOffset;  // The max random offset added
                                   // to the retry interval
 
 
