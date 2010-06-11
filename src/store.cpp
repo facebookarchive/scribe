@@ -98,8 +98,6 @@ Store::createStore(StoreQueue* storeq, const string& type,
                                                 multi_category));
   } else if (0 == type.compare("null")) {
     return shared_ptr<Store>(new NullStore(storeq, category, multi_category));
-  } else if (0 == type.compare("multi")) {
-    return shared_ptr<Store>(new MultiStore(storeq, category, multi_category));
   } else if (0 == type.compare("category")) {
     return shared_ptr<Store>(new CategoryStore(storeq, category,
                                               multi_category));
@@ -1355,12 +1353,6 @@ void BufferStore::configure(pStoreConf configuration, pStoreConf parent) {
       string msg("Bad config - buffer primary store doesn't have a type");
       setStatus(msg);
       cout << msg << endl;
-    } else if (0 == type.compare("multi")) {
-      // Cannot allow multistores in bufferstores as they can partially fail to
-      // handle a message.  We cannot retry sending a messages that was
-      // already handled by a subset of stores in the multistore.
-      string msg("Bad config - buffer primary store cannot be multistore");
-      setStatus(msg);
     } else {
       primaryStore = createStore(storeQueue, type, categoryHandled, false,
                                   multiCategory);
@@ -2585,177 +2577,6 @@ bool NullStore::empty(struct tm* now) {
   return true;
 }
 
-MultiStore::MultiStore(StoreQueue* storeq,
-                      const std::string& category,
-                      bool multi_category)
-  : Store(storeq, category, "multi", multi_category) {
-}
-
-MultiStore::~MultiStore() {
-}
-
-boost::shared_ptr<Store> MultiStore::copy(const std::string &category) {
-  MultiStore *store = new MultiStore(storeQueue, category, multiCategory);
-  store->report_success = this->report_success;
-  boost::shared_ptr<Store> tmp_copy;
-  for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
-       iter != stores.end();
-       ++iter) {
-    tmp_copy = (*iter)->copy(category);
-    store->stores.push_back(tmp_copy);
-  }
-
-  return shared_ptr<Store>(store);
-}
-
-bool MultiStore::open() {
-  bool all_result = true;
-  bool any_result = false;
-  bool cur_result;
-  for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
-       iter != stores.end();
-       ++iter) {
-    cur_result = (*iter)->open();
-    any_result |= cur_result;
-    all_result &= cur_result;
-  }
-  return (report_success == SUCCESS_ALL) ? all_result : any_result;
-}
-
-bool MultiStore::isOpen() {
-  bool all_result = true;
-  bool any_result = false;
-  bool cur_result;
-  for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
-       iter != stores.end();
-       ++iter) {
-    cur_result = (*iter)->isOpen();
-    any_result |= cur_result;
-    all_result &= cur_result;
-  }
-  return (report_success == SUCCESS_ALL) ? all_result : any_result;
-}
-
-void MultiStore::configure(pStoreConf configuration, pStoreConf parent) {
-  Store::configure(configuration, parent);
-  /**
-   * in this store, we look for other numbered stores
-   * in the following fashion:
-   * <store>
-   *   type=multi
-   *   report_success=all|any
-   *   <store0>
-   *     ...
-   *   </store0>
-       ...
-   *   <storen>
-   *     ...
-   *   </storen>
-   * </store>
-   */
-  pStoreConf cur_conf;
-  string cur_type;
-  boost::shared_ptr<Store> cur_store;
-  string report_preference;
-
-  // find reporting preference
-  if (configuration->getString("report_success", report_preference)) {
-    if (0 == report_preference.compare("all")) {
-      report_success = SUCCESS_ALL;
-      LOG_OPER("[%s] MULTI: Logging success only if all stores succeed.",
-               categoryHandled.c_str());
-    } else if (0 == report_preference.compare("any")) {
-      report_success = SUCCESS_ANY;
-      LOG_OPER("[%s] MULTI: Logging success if any store succeeds.",
-               categoryHandled.c_str());
-    } else {
-      LOG_OPER("[%s] MULTI: %s is an invalid value for report_success.",
-               categoryHandled.c_str(), report_preference.c_str());
-      setStatus("MULTI: Invalid report_success value.");
-      return;
-    }
-  } else {
-    report_success = SUCCESS_ALL;
-  }
-
-  // find stores
-  for (int i=0; ;++i) {
-    stringstream ss;
-    ss << "store" << i;
-    if (!configuration->getStore(ss.str(), cur_conf)) {
-      // allow this to be 0 or 1 indexed
-      if (i == 0) {
-        continue;
-      }
-
-      // no store for this id? we're finished.
-      break;
-    } else {
-      // find this store's type
-      if (!cur_conf->getString("type", cur_type)) {
-        LOG_OPER("[%s] MULTI: Store %d is missing type.", categoryHandled.c_str(), i);
-        setStatus("MULTI: Store is missing type.");
-        return;
-      } else {
-        // add it to the list
-        cur_store = createStore(storeQueue, cur_type, categoryHandled, false,
-                                multiCategory);
-        LOG_OPER("[%s] MULTI: Configured store of type %s successfully.",
-                 categoryHandled.c_str(), cur_type.c_str());
-        cur_store->configure(cur_conf, storeConf);
-        stores.push_back(cur_store);
-      }
-    }
-  }
-
-  if (stores.size() == 0) {
-    setStatus("MULTI: No stores found, invalid store.");
-    LOG_OPER("[%s] MULTI: No stores found, invalid store.", categoryHandled.c_str());
-  }
-}
-
-void MultiStore::close() {
-  for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
-       iter != stores.end();
-       ++iter) {
-    (*iter)->close();
-  }
-}
-
-bool MultiStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
-  bool all_result = true;
-  bool any_result = false;
-  bool cur_result;
-  for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
-       iter != stores.end();
-       ++iter) {
-    cur_result = (*iter)->handleMessages(messages);
-    any_result |= cur_result;
-    all_result &= cur_result;
-  }
-
-  // We cannot accurately report the number of messages not handled as messages
-  // can be partially handled by a subset of stores.  So a multistore failure
-  // will over-record the number of lost messages.
-  return (report_success == SUCCESS_ALL) ? all_result : any_result;
-}
-
-// Call periodicCheck on all contained stores
-void MultiStore::periodicCheck() {
-  for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
-       iter != stores.end();
-       ++iter) {
-    (*iter)->periodicCheck();
-  }
-}
-
-void MultiStore::flush() {
-  for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
-       iter != stores.end();
-       ++iter) {
-    (*iter)->flush();
-  }
-}
 
 CategoryStore::CategoryStore(StoreQueue* storeq,
                              const std::string& category,
