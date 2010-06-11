@@ -5,7 +5,7 @@
 #
 # Each store has a category and a type. The category must match the
 # category string used by the client code, and the type must be one of:
-# file, multifile, network, bucket, buffer, thriftfile, thriftmultifile
+# file, network, bucket, buffer, thriftfile
 #
 # The remainder of the store configuration depends on the type. The
 # copies of this file in source control should contain examples of
