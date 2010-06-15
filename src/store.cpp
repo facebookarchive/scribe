@@ -182,7 +182,7 @@ FileStoreBase::FileStoreBase(StoreQueue* storeq,
     rollMinute(DEFAULT_FILESTORE_ROLL_MINUTE),
     fsType("std"),
     chunkSize(0),
-    writeMeta(false),
+    writeFollowing(false),
     writeCategory(false),
     createSymlink(true),
     writeStats(false),
@@ -270,7 +270,7 @@ void FileStoreBase::configure(pStoreConf configuration, pStoreConf parent) {
 
   if (configuration->getString("write_meta", tmp)) {
     if (0 == tmp.compare("yes")) {
-      writeMeta = true;
+      writeFollowing = true;
     }
   }
   if (configuration->getString("write_category", tmp)) {
@@ -325,7 +325,7 @@ void FileStoreBase::copyCommon(const FileStoreBase *base) {
   rollHour = base->rollHour;
   rollMinute = base->rollMinute;
   fsType = base->fsType;
-  writeMeta = base->writeMeta;
+  writeFollowing = base->writeFollowing;
   writeCategory = base->writeCategory;
   createSymlink = base->createSymlink;
   baseSymlinkName = base->baseSymlinkName;
@@ -582,6 +582,7 @@ FileStore::FileStore(StoreQueue* storeq,
   : FileStoreBase(storeq, category, "file", multi_category),
     isBufferFile(is_buffer_file),
     addNewlines(false),
+    convertBuffer(new TMemoryBuffer()),
     lostBytes_(0) {
 }
 
@@ -659,7 +660,7 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
     }
 
     if (writeFile) {
-      if (writeMeta) {
+      if (writeFollowing) {
         writeFile->write(meta_logfile_prefix + file);
       }
       writeFile->close();
@@ -768,6 +769,37 @@ bool FileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   return writeMessages(messages);
 }
 
+// specific logic for buffer files
+string FileStore::makeFullFilename(int suffix, struct tm* creation_time,
+                                   bool use_full_path) {
+  string filename = FileStoreBase::makeFullFilename(suffix, creation_time,
+                                                    use_full_path);
+  if (isBufferFile) {
+    filename += ".buffer";
+  }
+
+  return filename;
+}
+
+string FileStore::getFullFilename(int suffix, struct tm* creation_time,
+                                  bool use_full_path) {
+  // first try the new style filename
+  string filename = makeFullFilename(suffix, creation_time, use_full_path);
+
+  // for buffer file, the ".buffer" extension is optional
+  if (isBufferFile) {
+    boost::shared_ptr<FileInterface> file =
+        FileInterface::createFileInterface(fsType, filename);
+    if (file->exists() == 0) {
+      // fail over to old style filename
+      filename = FileStoreBase::makeFullFilename(suffix, creation_time,
+                                                 use_full_path);
+    }
+  }
+
+  return filename;
+}
+
 // writes messages to either the specified file or the the current writeFile
 bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
                               boost::shared_ptr<FileInterface> file) {
@@ -781,6 +813,10 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
   unsigned long num_written = 0;
   boost::shared_ptr<FileInterface> write_file;
   unsigned long max_write_size = min(maxSize, maxWriteSize);
+  boost::shared_ptr<TProtocol> prot;
+
+  prot = TBinaryProtocolFactory().getProtocol(convertBuffer);
+
 
   // if no file given, use current writeFile
   if (file) {
@@ -797,48 +833,69 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
       // have to be careful with the length here. getFrame wants the length without
       // the frame, then bytesToPad wants the length of the frame and the message.
       unsigned long length = 0;
-      unsigned long message_length = (*iter)->message.length();
-      string frame, category_frame;
+      unsigned long message_length;
 
-      if (addNewlines) {
-        ++message_length;
-      }
+      if (isBufferFile) {
+        (*iter)->write(prot.get());
+        message_length = convertBuffer->available_read();
+        string frame = write_file->getFrame(message_length);
+        length += frame.length();
+        length += message_length;
+        write_buffer += frame;
+        write_buffer += convertBuffer->getBufferAsString();
+        convertBuffer->resetBuffer();
 
-      length += message_length;
+      } else {
+        // have to be careful with the length here. getFrame wants the length
+        // without the frame, then bytesToPad wants the length of the frame and
+        // the message.
+        string frame, category_frame;
 
-      if (writeCategory) {
-        //add space for category+newline and category frame
-        unsigned long category_length = (*iter)->category.length() + 1;
-        length += category_length;
+        message_length = (*iter)->message.length();
 
-        category_frame = write_file->getFrame(category_length);
-        length += category_frame.length();
-      }
+        if (addNewlines) {
+          ++message_length;
+        }
 
-      // frame is a header that the underlying file class can add to each message
-      frame = write_file->getFrame(message_length);
+        length += message_length;
 
-      length += frame.length();
+        if (writeCategory) {
+          //add space for category+newline and category frame
+          unsigned long category_length = (*iter)->category.length() + 1;
+          length += category_length;
 
-      // padding to align messages on chunk boundaries
-      unsigned long padding = bytesToPad(length, current_size_buffered, chunkSize);
+          category_frame = write_file->getFrame(category_length);
+          length += category_frame.length();
+        }
 
-      length += padding;
+        // frame is a header that the underlying file class can add to
+        // each message
+        frame = write_file->getFrame(message_length);
 
-      if (padding) {
-        write_buffer += string(padding, 0);
-      }
+        length += frame.length();
 
-      if (writeCategory) {
-        write_buffer += category_frame;
-        write_buffer += (*iter)->category + "\n";
-      }
+        // padding to align messages on chunk boundaries
+        unsigned long padding = bytesToPad(length, current_size_buffered,
+                                           chunkSize);
 
-      write_buffer += frame;
-      write_buffer += (*iter)->message;
+        length += padding;
 
-      if (addNewlines) {
-        write_buffer += "\n";
+        if (padding) {
+          write_buffer += string(padding, 0);
+        }
+
+        if (writeCategory) {
+          write_buffer += category_frame;
+          write_buffer += (*iter)->category;
+          write_buffer += '\n';
+        }
+
+        write_buffer += frame;
+        write_buffer += (*iter)->message;
+
+        if (addNewlines) {
+          write_buffer += "\n";
+        }
       }
 
       current_size_buffered += length;
@@ -897,7 +954,7 @@ void FileStore::deleteOldest(struct tm* now) {
     return;
   }
   shared_ptr<FileInterface> deletefile = FileInterface::createFileInterface(fsType,
-                                            makeFullFilename(index, now));
+                                            getFullFilename(index, now));
   if (lostBytes_) {
     g_Handler->incCounter(categoryHandled, "bytes lost", lostBytes_);
     lostBytes_ = 0;
@@ -915,7 +972,7 @@ bool FileStore::replaceOldest(boost::shared_ptr<logentry_vector_t> messages,
     return false;
   }
 
-  string filename = makeFullFilename(index, now);
+  string filename = getFullFilename(index, now);
 
   // Need to close and reopen store in case we already have this file open
   close();
@@ -945,6 +1002,7 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
                            struct tm* now) {
 
   long loss;
+  boost::shared_ptr<TProtocol> prot;
 
   int index = findOldestFile(makeBaseFilename(now));
   if (index < 0) {
@@ -952,7 +1010,7 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
     // files left, in which case the call succeeds but returns messages empty.
     return true;
   }
-  std::string filename = makeFullFilename(index, now);
+  std::string filename = getFullFilename(index, now);
 
   shared_ptr<FileInterface> infile = FileInterface::createFileInterface(fsType,
                                               filename, isBufferFile);
@@ -963,28 +1021,41 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
     return false;
   }
 
+  // new style buffer files are thrift encoded
+  bool thrift_encoded = isBufferFile &&
+    (filename == makeFullFilename(index, now));
+
+  if (thrift_encoded) {
+    prot = TBinaryProtocolFactory().getProtocol(convertBuffer);
+  }
+
   uint32_t bsize = 0;
   std::string message;
   while ((loss = infile->readNext(message)) > 0) {
     if (!message.empty()) {
       logentry_ptr_t entry = logentry_ptr_t(new LogEntry);
 
-      // check whether a category is stored with the message
-      if (writeCategory) {
-        // get category without trailing \n
-        entry->category = message.substr(0, message.length() - 1);
+      if (thrift_encoded) {
+        convertBuffer->write(reinterpret_cast<const uint8_t*>(message.data()),
+                             message.length());
+        entry->read(prot.get());
 
-        if ((loss = infile->readNext(message)) <= 0) {
-          LOG_OPER("[%s] category not stored with message <%s> "
-              "corruption?, incompatible config change?",
-              categoryHandled.c_str(), entry->category.c_str());
-          break;
-        }
       } else {
-        entry->category = categoryHandled;
-      }
+        // check whether a category is stored with the message
+        if (writeCategory) {
+          // get category without trailing \n
+          entry->category = message.substr(0, message.length() - 1);
+          if ((loss = infile->readNext(message)) <= 0) {
+            LOG_OPER("[%s] category not stored with metadata/message <%s> corruption?, incompatible config change?",
+                     categoryHandled.c_str(), entry->category.c_str());
+            break;
+          }
+        } else {
+          entry->category = categoryHandled;
+        }
 
-      entry->message = message;
+        entry->message = message;
+      }
 
       messages->push_back(entry);
       bsize += entry->category.size();
@@ -1549,6 +1620,7 @@ void BufferStore::periodicCheck() {
     try {
       for (sent = 0; sent < bufferSendRate; ++sent) {
         boost::shared_ptr<logentry_vector_t> messages(new logentry_vector_t);
+
         // Reads come complete buffered file
         // this file size is controlled by max_size in the configuration
         if (secondaryStore->readOldest(messages, &nowinfo)) {
@@ -2401,7 +2473,9 @@ bool BucketStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) 
              ++iter) {
           logentry_ptr_t entry = logentry_ptr_t(new LogEntry);
           entry->category = (*iter)->category;
-          entry->message = getMessageWithoutKey((*iter)->message);
+          entry->message  = getMessageWithoutKey((*iter)->message);
+          entry->metadata = (*iter)->metadata;
+          entry->__isset.metadata = (*iter)->__isset.metadata;
           key_removed->push_back(entry);
         }
         batch = key_removed;

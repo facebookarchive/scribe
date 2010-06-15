@@ -39,6 +39,24 @@ HdfsFile::~HdfsFile() {
   hfile = 0;
 }
 
+// 1 for existence
+// 0 for not absence
+// -1 for error
+int HdfsFile::exists() {
+  if (!fileSys) {
+    return -1;
+  }
+
+  int value = hdfsExists(fileSys, filename.c_str());
+  if (value == 0) {
+    return 1;
+  } else if (value == 1) {
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
 bool HdfsFile::openRead() {
   if (!fileSys) {
     fileSys = connectToPath(filename.c_str());

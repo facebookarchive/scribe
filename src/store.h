@@ -162,8 +162,10 @@ class FileStoreBase : public Store {
   unsigned long rollMinute;
   std::string fsType;
   unsigned long chunkSize;
-  bool writeMeta;
-  bool writeCategory;
+  bool writeFollowing;        // If this flag is enabled, the name of the file
+                              // following this one will be recorded at the end
+                              // of the current file
+  bool writeCategory;         // Record category names if set.
   bool createSymlink;
   bool writeStats;
   bool rotateOnReopen;
@@ -218,12 +220,19 @@ class FileStore : public FileStoreBase {
   bool writeMessages(boost::shared_ptr<logentry_vector_t> messages,
                      boost::shared_ptr<FileInterface> write_file =
                      boost::shared_ptr<FileInterface>());
+  std::string makeFullFilename(int suffix, struct tm* creation_time,
+                               bool use_full_path = true);
+  std::string getFullFilename(int suffix, struct tm* creation_time,
+                              bool use_full_path = true);
 
   bool isBufferFile;
   bool addNewlines;
 
   // State
   boost::shared_ptr<FileInterface> writeFile;
+  // a buffer to convert messages to/from binary blocks.
+  // We make it a member variable to avoid memory alloc/reclaim
+  boost::shared_ptr<apache::thrift::transport::TMemoryBuffer> convertBuffer;
 
  private:
   // disallow copy, assignment, and empty construction

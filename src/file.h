@@ -34,6 +34,9 @@ class FileInterface {
                                                               bool framed = false);
   static std::vector<std::string> list(const std::string& path, const std::string& fsType);
 
+  virtual int  exists() = 0; // returns: 1 for existing;
+                             //          0 for not existing;
+                             //          -1 for error
   virtual bool openRead() = 0;
   virtual bool openWrite() = 0;
   virtual bool openTruncate() = 0;
@@ -62,6 +65,7 @@ class StdFile : public FileInterface {
   StdFile(const std::string& name, bool framed);
   virtual ~StdFile();
 
+  int  exists();
   bool openRead();
   bool openWrite();
   bool openTruncate();

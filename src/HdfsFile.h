@@ -16,6 +16,7 @@ class HdfsFile : public FileInterface {
   virtual ~HdfsFile();
 
   static void init();        // initialize hdfs subsystem
+  int  exists();
   bool openRead();           // open for reading file
   bool openWrite();          // open for appending to file
   bool openTruncate();       // truncate and open for write
@@ -68,6 +69,7 @@ class HdfsFile : public FileInterface {
     LOG_OPER("[hdfs] If you want HDFS Support, please recompile scribe with HDFS support");
   }
   static void init() {};
+  int  exists()   { return 0; }
   bool openRead() { return false; };           // open for reading file
   bool openWrite(){ return false; };           // open for appending to file
   bool openTruncate() { return false; }        // open for write and truncate

@@ -69,6 +69,10 @@ StdFile::~StdFile() {
   }
 }
 
+int StdFile::exists() {
+  return (boost::filesystem::exists(filename) ? 1 : 0);
+}
+
 bool StdFile::openRead() {
   return open(fstream::in);
 }

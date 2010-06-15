@@ -369,7 +369,9 @@ void scribeHandler::addMessage(
     ++numstores;
     boost::shared_ptr<LogEntry> ptr(new LogEntry);
     ptr->category = entry.category;
-    ptr->message = entry.message;
+    ptr->message  = entry.message;
+    ptr->metadata = entry.metadata;
+    ptr->__isset.metadata = entry.__isset.metadata;
 
     (*store_iter)->addMessage(ptr);
   }
