@@ -27,6 +27,8 @@
 #include <algorithm>
 #include "common.h"
 #include "scribe_server.h"
+#include "thrift/lib/cpp/transport/TSimpleFileTransport.h"
+#include "timelatency.h"
 #include "network_dynamic_config.h"
 
 using namespace std;
@@ -900,6 +902,15 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
 
       current_size_buffered += length;
       num_buffered++;
+
+      if (!isBufferFile && isTimeStampPresent(*(*iter))) {
+        // report the numbers to fb303 counters
+        unsigned long message_time_ms = getTimeStamp(*(*iter));
+        unsigned long current_time_ms = getCurrentTimeStamp();
+
+        g_Handler->reportLatencyWriter((*iter)->category,
+            current_time_ms - message_time_ms);
+      }
 
       // Write buffer if processing last message or if larger than allowed
       if ((current_size_buffered > max_write_size && maxSize != 0) ||

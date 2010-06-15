@@ -75,6 +75,13 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   unsigned long getMaxConn() {
     return maxConn;
   }
+
+  // Hop Latency is the latency between last hop receiving the message and this
+  // scribe receiving the message.
+  void reportLatencyHop(const std::string& category, long ms);
+  // Writer Latency is the latency from receiving the message to writing it out
+  void reportLatencyWriter(const std::string& category, long ms);
+
  private:
   boost::shared_ptr<apache::thrift::server::TNonblockingServer> server;
 
@@ -100,6 +107,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   unsigned long long maxQueueSize;
   StoreConf config;
   bool newThreadPerCategory;
+  float timeStampSampleRate;
 
   /* mutex to syncronize access to scribeHandler.
    * A single mutex is fine since it only needs to be locked in write mode
@@ -131,6 +139,8 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
     createNewCategory(const std::string& category);
   void addMessage(const scribe::thrift::LogEntry& entry,
                   const boost::shared_ptr<store_list_t>& store_list);
+  void reportLatency(const std::string& category, const std::string& type,
+                     long ms);
 };
 extern boost::shared_ptr<scribeHandler> g_Handler;
 #endif // SCRIBE_SERVER_H

@@ -47,6 +47,7 @@ $ALL_TESTS = array(
   'paramtest',
   'twodefaulttest',
   //'reloadtest',
+  //'latencytest',
 );
 
 $output_file = null;

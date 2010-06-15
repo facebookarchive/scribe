@@ -23,6 +23,7 @@
 
 #include "common.h"
 #include "scribe_server.h"
+#include "timelatency.h"
 
 using namespace apache::thrift::concurrency;
 
@@ -30,6 +31,7 @@ using namespace facebook::fb303;
 using namespace facebook;
 
 using namespace scribe::thrift;
+
 using namespace std;
 
 using boost::shared_ptr;
@@ -42,8 +44,11 @@ shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_SERVER_THREADS     3
 #define DEFAULT_MAX_CONN           0
 
-static string overall_category = "scribe_overall";
-static string log_separator = ":";
+static const string overall_category = "scribe_overall";
+static const string log_separator    = ".";
+static const string log_latency      = "latency";
+static const string log_hop          = "hop";
+static const string log_writer       = "writer";
 
 void print_usage(const char* program_name) {
   cout << "Usage: " << program_name << " [-p port] [-c config_file]" << endl;
@@ -54,8 +59,34 @@ void scribeHandler::incCounter(string category, string counter) {
 }
 
 void scribeHandler::incCounter(string category, string counter, long amount) {
-  incrementCounter(category + log_separator + counter, amount);
-  incrementCounter(overall_category + log_separator + counter, amount);
+  // fb303 has the following types of counters:
+  // count, sum, avg, and rate
+  // if not explicitly specified, then avg is assumed.
+  // since we are usually adding 1 when call this function, the avg will
+  // always be 1 since avg = sum(amount) / count and count increment by 1
+  // everytime we call it. This is probably not what we want it. So we
+  // need to export it as of type sum
+  static hash_set<string, strhash> catMap;
+  static boost::shared_ptr<Mutex> catMapLock(new Mutex());
+
+  string catKey = category + log_separator + counter;
+  string overallKey = overall_category + log_separator + counter;
+
+  {
+    Guard g(*catMapLock);
+
+    if (catMap.find(catKey) == catMap.end()) {
+      catMap.insert(catKey);
+
+      addStatExportType(catKey, stats::SUM);
+      addStatExportType(overallKey, stats::SUM);
+    }
+  }
+
+  incrementCounter(catKey, amount);
+  incrementCounter(overallKey, amount);
+  addStatValue(catKey, amount);
+  addStatValue(overallKey, amount);
 }
 
 void scribeHandler::incCounter(string counter) {
@@ -64,6 +95,47 @@ void scribeHandler::incCounter(string counter) {
 
 void scribeHandler::incCounter(string counter, long amount) {
   incrementCounter(overall_category + log_separator + counter, amount);
+}
+
+void scribeHandler::reportLatencyHop(const string& category, long ms) {
+  reportLatency(category, log_hop, ms);
+}
+
+void scribeHandler::reportLatencyWriter(const string& category, long ms) {
+  reportLatency(category, log_writer, ms);
+}
+
+void scribeHandler::reportLatency(const string& category, const string& type,
+                                  long ms) {
+  // export for histogram
+  static hash_set<string, strhash> catMap;
+  static boost::shared_ptr<Mutex> catMapLock(new Mutex());
+
+  string cat_key = category + log_separator + log_latency + log_separator +type;
+  string overall_key = overall_category + log_separator + log_latency
+                     + log_separator + type;
+
+  {
+    Guard g(*catMapLock);
+
+    if (catMap.find(cat_key) == catMap.end()) {
+      // export a histogram with Avg, 75%, 95%, 99%, with latency range
+      // from [0, 10] seconds, and 100 buckets distribution
+      // TODO: make max configurable. currently hard coded to 10sec.
+      addHistAndStatExports(cat_key, "AVG,COUNT,SUM,75,95,99,0,100", 100, 0,
+                            10000);
+      catMap.insert(cat_key);
+    }
+
+    if (catMap.find(overall_key) == catMap.end()) {
+      addHistAndStatExports(overall_key, "AVG,COUNT,SUM,75,95,99,0,100", 100, 0,
+                            10000);
+      catMap.insert(overall_key);
+    }
+  }
+
+  addHistAndStatValue(cat_key, ms);
+  addHistAndStatValue(overall_key, ms);
 }
 
 int main(int argc, char **argv) {
@@ -135,7 +207,8 @@ scribeHandler::scribeHandler(unsigned long int server_port, const std::string& c
     maxMsgPerSecond(DEFAULT_MAX_MSG_PER_SECOND),
     maxConn(DEFAULT_MAX_CONN),
     maxQueueSize(DEFAULT_MAX_QUEUE_SIZE),
-    newThreadPerCategory(true) {
+    newThreadPerCategory(true),
+    timeStampSampleRate(0) {
   time(&lastMsgTime);
   scribeHandlerLock = scribe::concurrency::createReadWriteMutex();
 }
@@ -383,11 +456,17 @@ void scribeHandler::addMessage(
   }
 }
 
-
-ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
+ResultCode scribeHandler::Log(const vector<LogEntry>&  messages_const) {
   ResultCode result = TRY_LATER;
+  vector <LogEntry> & messages = const_cast<vector<LogEntry>&> (messages_const);
 
   scribeHandlerLock->acquireRead();
+
+  // this is a time that we have unmarshaled all messages.
+  // hop-by-hop latency is defined as the difference of time between two hops
+  // at this exact points.
+  unsigned long curr_timestamp = getCurrentTimeStamp();
+
   if(status == STOPPING) {
     result = TRY_LATER;
     goto end;
@@ -398,7 +477,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
     goto end;
   }
 
-  for (vector<LogEntry>::const_iterator msg_iter = messages.begin();
+  for (vector<LogEntry>::iterator msg_iter = messages.begin();
        msg_iter != messages.end();
        ++msg_iter) {
 
@@ -442,7 +521,6 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
       } else {
         store_list = createNewCategory(category);
       }
-
     }
 
     if (store_list == NULL) {
@@ -450,6 +528,18 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
       incCounter(category, "received bad");
 
       continue;
+    }
+
+    // Log the latency
+    if (isTimeStampPresent(*msg_iter)) {
+      unsigned long msg_timestamp = getTimeStamp(*msg_iter);
+      long latency = curr_timestamp - msg_timestamp;
+      reportLatencyHop(msg_iter->category, latency);
+      removeTimeStamp(*msg_iter);
+    }
+    // Add the timestamp?
+    if (timeStampSampleRate > 0 && drand48() < timeStampSampleRate) {
+      updateTimeStamp(*msg_iter, curr_timestamp);
     }
 
     // Log this message
@@ -566,6 +656,7 @@ void scribeHandler::initialize() {
     checkPeriod = 1;
   }
   config.getUnsigned("max_conn", maxConn);
+  config.getFloat("timestamp_sample_rate", timeStampSampleRate);
 
   // If new_thread_per_category, then we will create a new thread/StoreQueue
   // for every unique message category seen.  Otherwise, we will just create

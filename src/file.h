@@ -34,9 +34,12 @@ class FileInterface {
                                                               bool framed = false);
   static std::vector<std::string> list(const std::string& path, const std::string& fsType);
 
-  virtual int  exists() = 0; // returns: 1 for existing;
-                             //          0 for not existing;
-                             //          -1 for error
+  // Test if the specific file exists in the filesystem.
+  // Returns:
+  //   1  - file exists
+  //   0  - file does not exist
+  //   -1 - an error occurred during the query
+  virtual int  exists() = 0;
   virtual bool openRead() = 0;
   virtual bool openWrite() = 0;
   virtual bool openTruncate() = 0;
