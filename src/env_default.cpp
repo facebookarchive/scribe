@@ -35,11 +35,13 @@ using namespace scribe::concurrency;
 
 using boost::shared_ptr;
 
+namespace scribe {
+
 /*
  * Network configuration and directory services
  */
 
-bool scribe::network_config::getService(const std::string& serviceName,
+bool network_config::getService(const std::string& serviceName,
                                         const std::string& options,
                                         server_vector_t& _return) {
   return false;
@@ -49,7 +51,7 @@ bool scribe::network_config::getService(const std::string& serviceName,
  * Concurrency mechanisms
  */
 
-shared_ptr<ReadWriteMutex> scribe::concurrency::createReadWriteMutex() {
+shared_ptr<ReadWriteMutex> concurrency::createReadWriteMutex() {
   return shared_ptr<ReadWriteMutex>(new ReadWriteMutex());
 }
 
@@ -57,7 +59,7 @@ shared_ptr<ReadWriteMutex> scribe::concurrency::createReadWriteMutex() {
  * Time functions
  */
 
-unsigned long scribe::clock::nowInMsec() {
+unsigned long clock::nowInMsec() {
   // There is a minor race condition between the 2 calls below,
   // but the chance is really small.
 
@@ -75,11 +77,23 @@ unsigned long scribe::clock::nowInMsec() {
  * Hash functions
  */
 
-uint32_t scribe::integerhash::hash32(uint32_t key) {
+size_t integerhash::operator()(const uint32_t x) const {
+  return (size_t)hash32(x);
+}
+
+uint32_t integerhash::hash32(uint32_t key) {
   return key;
 }
 
-uint32_t scribe::strhash::hash32(const char *s) {
+size_t strhash::operator()(const std::string &x) const {
+  return (size_t)hash32(x.c_str());
+}
+
+size_t strhash::operator()(const char *x) const {
+  return (size_t)hash32(x);
+}
+
+uint32_t strhash::hash32(const char *s) {
   // Use the djb2 hash (http://www.cse.yorku.ca/~oz/hash.html)
   if (s == NULL) {
     return 0;
@@ -96,7 +110,7 @@ uint32_t scribe::strhash::hash32(const char *s) {
  * Starting a scribe server.
  */
 // note: this function uses global g_Handler.
-void scribe::startServer() {
+void startServer() {
   boost::shared_ptr<TProcessor> processor(new scribeProcessor(g_Handler));
   /* This factory is for binary compatibility. */
   boost::shared_ptr<TProtocolFactory> protocol_factory(
@@ -138,10 +152,11 @@ void scribe::startServer() {
   // this function never returns
 }
 
-
 /*
  * Stopping a scribe server.
  */
-void scribe::stopServer() {
+void stopServer() {
   exit(0);
 }
+
+} //! namespace scribe

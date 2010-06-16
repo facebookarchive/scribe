@@ -32,6 +32,8 @@
 #include <semaphore.h>
 #include <map>
 #include <set>
+#include <tr1/unordered_map>
+#include <tr1/unordered_set>
 #include <stdexcept>
 #include <errno.h>
 #include <stdint.h>
@@ -42,6 +44,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <boost/lexical_cast.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/convenience.hpp>

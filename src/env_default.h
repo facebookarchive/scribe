@@ -112,11 +112,18 @@ namespace clock {
 // You can probably find better hash functions than these
 class integerhash {
  public:
+  size_t operator()(const uint32_t x) const;
+
   static uint32_t hash32(uint32_t key);
 };
 
 class strhash {
  public:
+  // hash operator
+  size_t operator()(const std::string &x) const;
+
+  size_t operator()(const char *x) const;
+
   static uint32_t hash32(const char *s);
 };
 
