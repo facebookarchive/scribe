@@ -228,20 +228,6 @@ const char* scribeHandler::statusAsString(fb_status status) {
 bool scribeHandler::createCategoryFromModel(
   const string &category, const boost::shared_ptr<StoreQueue> &model) {
 
-  // Make sure the category name is sane.
-  try {
-    string clean_path = boost::filesystem::path(category).string();
-
-    if (clean_path.compare(category) != 0) {
-      LOG_OPER("Category not a valid boost filename");
-      return false;
-    }
-
-  } catch(const std::exception& e) {
-    LOG_OPER("Category not a valid boost filename.  Boost exception:%s", e.what());
-    return false;
-  }
-
   shared_ptr<StoreQueue> pstore;
   if (newThreadPerCategory) {
     // Create a new thread/StoreQueue for this category
@@ -412,6 +398,13 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
     // disallow blank category from the start
     if ((*msg_iter).category.empty()) {
       incCounter("received blank category");
+      continue;
+    }
+
+    // Disallow category names that are not valid filenames
+    // This create problems in Filestore file creation
+    if (!(boost::filesystem::portable_posix_name( (*msg_iter).category ))) {
+      incCounter("received invalid category name");
       continue;
     }
 
