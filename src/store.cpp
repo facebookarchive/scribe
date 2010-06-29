@@ -1015,10 +1015,24 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
 }
 
 bool FileStore::empty(struct tm* now) {
-
   std::vector<std::string> files = FileInterface::list(filePath, fsType);
 
-  return files.empty();
+  std::string base_filename = makeBaseFilename(now);
+  for (std::vector<std::string>::iterator iter = files.begin();
+       iter != files.end();
+       ++iter) {
+    int suffix =  getFileSuffix(*iter, base_filename);
+    if (-1 != suffix) {
+      std::string fullname = makeFullFilename(suffix, now);
+      shared_ptr<FileInterface> file = FileInterface::createFileInterface(fsType,
+                                                                      fullname);
+      if (file->fileSize()) {
+        return false;
+      }
+    } // else it doesn't match the filename for this store
+  }
+  return true;
+
 }
 
 
