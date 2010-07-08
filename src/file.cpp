@@ -124,8 +124,11 @@ bool StdFile::write(const std::string& data) {
     return false;
   }
 
+
   file << data;
-  if (file.bad()) {
+  if (file.fail()) {
+    LOG_OPER("Failed to write to file %s state=0x%x",
+        filename.c_str(), file.rdstate());
     return false;
   }
   return true;
