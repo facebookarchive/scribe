@@ -110,6 +110,7 @@ int main(int argc, char **argv) {
     srand(time(NULL) ^ getpid());
 
     g_Handler = shared_ptr<scribeHandler>(new scribeHandler(port, config_file));
+    g_Handler->setStatus(STARTING);
     g_Handler->initialize();
 
     scribe::startServer(); // never returns
@@ -147,11 +148,12 @@ scribeHandler::~scribeHandler() {
 // Returns the handler status, but overwrites it with WARNING if it's
 // ALIVE and at least one store has a nonempty status.
 fb_status scribeHandler::getStatus() {
-  RWGuard monitor(*scribeHandlerLock);
-  Guard status_monitor(statusLock);
 
+  statusLock.lock();
   fb_status return_status(status);
-  if (status == ALIVE) {
+  statusLock.unlock();
+  if (return_status == ALIVE) {
+    RWGuard monitor(*scribeHandlerLock);
     for (category_map_t::iterator cat_iter = categories.begin();
         cat_iter != categories.end();
         ++cat_iter) {
@@ -170,18 +172,20 @@ fb_status scribeHandler::getStatus() {
 
 void scribeHandler::setStatus(fb_status new_status) {
   LOG_OPER("STATUS: %s", statusAsString(new_status));
-  Guard status_monitor(statusLock);
+  statusLock.lock();
   status = new_status;
+  statusLock.unlock();
 }
 
 // Returns the handler status details if non-empty,
 // otherwise the first non-empty store status found
 void scribeHandler::getStatusDetails(std::string& _return) {
-  RWGuard monitor(*scribeHandlerLock);
-  Guard status_monitor(statusLock);
 
+  statusLock.lock();
   _return = statusDetails;
+  statusLock.unlock();
   if (_return.empty()) {
+    RWGuard monitor(*scribeHandlerLock);
     for (category_map_t::iterator cat_iter = categories.begin();
         cat_iter != categories.end();
         ++cat_iter) {
@@ -200,8 +204,9 @@ void scribeHandler::getStatusDetails(std::string& _return) {
 
 void scribeHandler::setStatusDetails(const string& new_status_details) {
   LOG_OPER("STATUS: %s", new_status_details.c_str());
-  Guard status_monitor(statusLock);
+  statusLock.lock();
   statusDetails = new_status_details;
+  statusLock.unlock();
 }
 
 const char* scribeHandler::statusAsString(fb_status status) {
@@ -487,7 +492,14 @@ bool scribeHandler::throttleDeny(int num_messages) {
 }
 
 void scribeHandler::stopStores() {
+  scribeHandlerLock->acquireWrite();
   setStatus(STOPPING);
+  scribeHandlerLock->release();
+  /*
+   * Only server thread left operating. Others will see the STOPPING
+   * status and will return with TRY_LATER. This thread will now block
+   * multiple times waiting to pthread_join other store threads.
+   */
   shared_ptr<store_list_t> store_list;
   for (store_list_t::iterator store_iter = defaultStores.begin();
       store_iter != defaultStores.end(); ++store_iter) {
@@ -498,11 +510,9 @@ void scribeHandler::stopStores() {
   defaultStores.clear();
   deleteCategoryMap(categories);
   deleteCategoryMap(category_prefixes);
-
 }
 
 void scribeHandler::shutdown() {
-  RWGuard monitor(*scribeHandlerLock, true);
   stopStores();
   // calling stop to allow thrift to clean up client states and exit
   server->stop();
@@ -510,7 +520,6 @@ void scribeHandler::shutdown() {
 }
 
 void scribeHandler::reinitialize() {
-  RWGuard monitor(*scribeHandlerLock, true);
 
   // reinitialize() will re-read the config file and re-configure the stores.
   // This is done without shutting down the Thrift server, so this will not
@@ -621,6 +630,10 @@ void scribeHandler::initialize() {
     deleteCategoryMap(category_prefixes);
   }
 
+  /*
+   * Set the status to something other than STOPPING to let other
+   * threads in
+   */
   if (!perfect_config || !enough_config_to_run) {
     // perfect should be a subset of enough, but just in case
     setStatus(WARNING); // status details should have been set above
