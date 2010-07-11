@@ -6,11 +6,13 @@
 //
 
 #include <limits>
+#include <boost/scoped_ptr.hpp>
 #include "common.h"
 #include "file.h"
 #include "HdfsFile.h"
 
 using namespace std;
+using boost::scoped_ptr;
 
 HdfsFile::HdfsFile(const std::string& name) : FileInterface(name, false), inputBuffer_(NULL), bufferSize_(0) {
   LOG_OPER("[hdfs] Connecting to HDFS for %s", name.c_str());
@@ -199,7 +201,8 @@ bool HdfsFile::createDirectory(std::string path) {
 bool HdfsFile::createSymlink(std::string oldpath, std::string newpath) {
   LOG_OPER("[hdfs] Creating symlink oldpath %s newpath %s",
            oldpath.c_str(), newpath.c_str());
-  HdfsFile* link = new HdfsFile(newpath);
+  scoped_ptr<HdfsFile> link(new HdfsFile(newpath))
+;
   if (link->openWrite() == false) {
     LOG_OPER("[hdfs] Creating symlink failed because %s already exists.",
              newpath.c_str());
@@ -220,13 +223,13 @@ bool HdfsFile::createSymlink(std::string oldpath, std::string newpath) {
  */
 hdfsFS HdfsFile::connectToPath(const char* uri) {
   const char proto[] = "hdfs://";
- 
+
   if (strncmp(proto, uri, strlen(proto)) != 0) {
     // uri doesn't start with hdfs:// -> use default:0, which is special
     // to libhdfs.
     return hdfsConnectNewInstance("default", 0);
   }
- 
+
   // Skip the hdfs:// part.
   uri += strlen(proto);
   // Find the next colon.
@@ -236,7 +239,7 @@ hdfsFS HdfsFile::connectToPath(const char* uri) {
     LOG_OPER("[hdfs] Missing port specification: \"%s\"", uri);
     return NULL;
   }
- 
+
   char* endptr = NULL;
   const long port = strtol(colon + 1, &endptr, 10);
   if (port < 0) {
@@ -246,11 +249,11 @@ hdfsFS HdfsFile::connectToPath(const char* uri) {
     LOG_OPER("[hdfs] Invalid port specification (out of range): \"%s\"", uri);
     return NULL;
   }
- 
+
   char* const host = (char*) malloc(colon - uri + 1);
   memcpy((char*) host, uri, colon - uri);
   host[colon - uri] = '\0';
- 
+
   LOG_OPER("[hdfs] Before hdfsConnectNewInstance(%s, %li)", host, port);
   hdfsFS fs = hdfsConnectNewInstance(host, port);
   LOG_OPER("[hdfs] After hdfsConnectNewInstance");
