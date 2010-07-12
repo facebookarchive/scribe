@@ -88,7 +88,7 @@ echo "$cmd\n";
 system($cmd);
 
 // start bidupdaer
-$cmd = "../../_bin/scribe/test/bucketupdater/bidupdater -p 9999 -f ./bidmap > bidupdater.out 2>&1 & echo $!";
+$cmd = "../test/bucketupdater/bidupdater -p 9999 -f ./bidmap > bidupdater.out 2>&1 & echo $!";
 echo "$cmd\n";
 $pidUpdater = system($cmd);
 

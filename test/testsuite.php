@@ -43,7 +43,6 @@ $ALL_TESTS = array(
   'buffertest',
   'buffertest2',
 //  'categoriestest',
-  'bucketupdater',
   'paramtest',
   'twodefaulttest',
   //'reloadtest',

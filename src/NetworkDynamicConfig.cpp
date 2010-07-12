@@ -17,21 +17,34 @@
 //
 // @author John Song
 
-#ifndef SCRIBE_NETWORK_UPDATER_H
-#define SCRIBE_NETWORK_UPDATER_H
+#include "DynamicBucketUpdater.h"
+#include "NetworkDynamicConfig.h"
 
-#include "conf.h"
+namespace scribe {
 
-// functional types for network dynamic updater validation and getHost calls
-typedef bool (*NetworkIsConfigValidFunc)(const std::string& category, const StoreConf* pconf);
-typedef bool (*NetworkGetHost)(const std::string& category, const StoreConf* pconf, std::string& host, uint32_t& port);
-
-struct NetworkDynamicConfigMod {
-  const char* name;
-  NetworkIsConfigValidFunc isConfigValidFunc;
-  NetworkGetHost getHostFunc;
+static NetworkDynamicConfigMod netConfigMods[] = {
+  {
+    "thrift_bucket",
+    DynamicBucketUpdater::isConfigValid,
+    DynamicBucketUpdater::getHost,
+  },
+  {
+    "",
+    NULL,
+    NULL,
+  },
 };
 
-NetworkDynamicConfigMod* getNetworkDynamicConfigMod(const char* name);
+NetworkDynamicConfigMod* getNetworkDynamicConfigMod(const char* name) {
+  for (NetworkDynamicConfigMod *pconf = netConfigMods;
+      pconf->isConfigValidFunc && pconf->getHostFunc;
+      ++pconf) {
+    if (strcmp(name, pconf->name) == 0) {
+      return pconf;
+    }
+  }
 
-#endif //SCRIBE_NETWORK_UPDATER_H
+  return NULL;
+}
+
+} //! namespace scribe

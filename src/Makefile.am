@@ -40,9 +40,9 @@ THRIFT = $(thrift_home)/bin/thrift
 if FACEBOOK
   FB_SOURCES = gen-cpp/ServiceManager_types.cpp gen-cpp/ServiceManager.cpp
   FB_CPPFLAGS = -I$(fb_home)
-  ENV_SOURCES = env_facebook.cpp
+  ENV_SOURCES = EnvFacebook.cpp
 else
-  ENV_SOURCES = env_default.cpp
+  ENV_SOURCES = EnvDefault.cpp
 endif
 if DEBUG
    DEBUG_CPPFLAGS = -DDEBUG_TIMING
@@ -98,7 +98,9 @@ endif
 
 # Binaries -- multiple progs can be defined.
 bin_PROGRAMS = scribed
-scribed_SOURCES = store.cpp store_queue.cpp conf.cpp file.cpp conn_pool.cpp stat_counters.cpp scribe_server.cpp $(FB_SOURCES) $(ENV_SOURCES)
+scribed_SOURCES = Main.cpp Store.cpp StoreQueue.cpp Conf.cpp File.cpp ConnPool.cpp StatCounters.cpp ScribeServer.cpp \
+                  BucketStore.cpp BufferStore.cpp FileStore.cpp NetworkStore.cpp NullStore.cpp ThriftFileStore.cpp \
+                  $(FB_SOURCES) $(ENV_SOURCES)
 if USE_SCRIBE_HDFS
   scribed_SOURCES += HdfsFile.cpp
 endif
@@ -112,11 +114,11 @@ endif
 # Set up Thrift specific activity here.
 # We assume that a <name>+types.cpp will always be built from <name>.thrift.
 
-$(eval $(call thrift_template,.,$(srcdir)/../if/scribe.thrift, -I $(fb303_home)/share/ --cpp --py --php --java))
-$(eval $(call thrift_template,.,$(srcdir)/../if/bucketupdater.thrift, -I $(fb303_home)/share/ --cpp --py --php --java))
+$(eval $(call thrift_template,.,$(srcdir)/../if/scribe.thrift, -I $(fb303_home)/share/ --gen cpp --gen py --gen php --gen java))
+$(eval $(call thrift_template,.,$(srcdir)/../if/bucketupdater.thrift, -I $(fb303_home)/share/ --gen cpp --gen py --gen php --gen java))
 
 if FACEBOOK
-  $(eval $(call thrift_template,.,$(smc_home)/if/ServiceManager.thrift,--cpp))
+  $(eval $(call thrift_template,.,$(smc_home)/if/ServiceManager.thrift,--gen cpp))
 endif
 
 BUILT_SOURCES = thriftstyle

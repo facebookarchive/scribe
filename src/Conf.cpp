@@ -20,14 +20,13 @@
 // @author John Song
 
 #include <boost/algorithm/string.hpp>
-#include "common.h"
-#include "conf.h"
-#include "scribe_server.h"
+#include "Common.h"
+#include "Conf.h"
+#include "ScribeServer.h"
 
 using namespace boost;
-using namespace std;
 
-extern shared_ptr<scribeHandler> g_Handler;
+namespace scribe {
 
 StoreConf::StoreConf() {
 }
@@ -35,91 +34,90 @@ StoreConf::StoreConf() {
 StoreConf::~StoreConf() {
 }
 
-bool StoreConf::getStore(const string& storeName, pStoreConf& _return) {
-  store_conf_map_t::iterator iter = stores.find(storeName);
-  if (iter != stores.end()) {
-    _return = iter->second;
+bool StoreConf::getStore(const string& storeName, StoreConfPtr* value) {
+  StoreConfMap::iterator iter = stores_.find(storeName);
+  if (iter != stores_.end()) {
+    *value = iter->second;
     return true;
   } else {
     return false;
   }
 }
 
-void StoreConf::setParent(pStoreConf pParent) {
-  parent = pParent;
+void StoreConf::setParent(StoreConfPtr parent) {
+  parent_ = parent;
 }
 
-void StoreConf::getAllStores(vector<pStoreConf>& _return) {
-  for (store_conf_map_t::iterator iter = stores.begin(); iter != stores.end(); ++iter) {
-    _return.push_back(iter->second);
+void StoreConf::getAllStores(vector<StoreConfPtr>* value) {
+  for (StoreConfMap::iterator iter = stores_.begin();
+       iter != stores_.end();
+       ++iter) {
+    value->push_back(iter->second);
   }
 }
 
-bool StoreConf::getInt(const string& intName, long int& _return) const {
+bool StoreConf::getInt(const string& intName, long* value) const {
   string str;
-  if (getString(intName, str)) {
-    _return = strtol(str.c_str(), NULL, 0);
+  if (getString(intName, &str)) {
+    *value = lexical_cast<long>(str);
     return true;
   } else {
     return false;
   }
 }
 
-bool StoreConf::getFloat(const std::string& floatName, float & _return) const {
+bool StoreConf::getFloat(const string& floatName, float* value) const {
   string str;
-  if (getString(floatName, str)) {
-    _return = strtof(str.c_str(), NULL);
+  if (getString(floatName, &str)) {
+    *value = lexical_cast<float>(str);
     return true;
   } else {
     return false;
   }
 }
 
-bool StoreConf::getUnsigned(const string& intName,
-                            unsigned long int& _return) const {
+bool StoreConf::getUnsigned(const string& intName, unsigned long* value) const {
   string str;
-  if (getString(intName, str)) {
-    _return = strtoul(str.c_str(), NULL, 0);
+  if (getString(intName, &str)) {
+    *value = lexical_cast<unsigned long>(str);
     return true;
   } else {
     return false;
   }
 }
 
-bool StoreConf::getUnsignedLongLong(const string& llName,
-                                    unsigned long long& _return) const {
+bool StoreConf::getUint64(const string& intName, uint64_t* value) const {
   string str;
-  if (getString(llName, str)) {
-    _return = strtoull(str.c_str(), NULL, 10);
+  if (getString(intName, &str)) {
+    *value = lexical_cast<uint64_t>(str);
     return true;
   } else {
     return false;
   }
 }
 
-bool StoreConf::getString(const string& stringName,
-                          string& _return) const {
+bool StoreConf::getString(const string& stringName, string* value) const {
   // allow parameter inheritance, i.e. if a named value is not found in the
   // current store's configuration, we keep looking up the current StoreConf's
   // ancestors until it is either found or we hit the root store.
-  // To avoid ambiguity, when searching for named parameter in the ancestor store
-  // we are looking for $type::$stringName where $type is the store type.
+  // To avoid ambiguity, when searching for named parameter in the ancestor
+  // store we are looking for $type::$stringName where $type is the store type.
   // check the current store conf
 
   // first check the current store
-  string_map_t::const_iterator iter = values.find(stringName);
-  if (iter != values.end()) {
-    _return = iter->second;
+  StringMap::const_iterator iter = values_.find(stringName);
+  if (iter != values_.end()) {
+    *value = iter->second;
     return true;
   }
 
   // "category", "categories", "type" parameters can't be inherited
-  string_map_t::const_iterator typeIter = values.find("type");
-  string storeType = typeIter == values.end() ? "" : typeIter->second;
-  if (storeType.empty()
-      || stringName == "type"
-      || stringName == "category"
-      || stringName == "categories") {
+  StringMap::const_iterator typeIt = values_.find("type");
+  string storeType = (typeIt == values_.end() ? "" : typeIt->second);
+  if (storeType.empty() ||
+      stringName == "type" ||
+      stringName == "category" ||
+      stringName == "categories") {
     return false;
   }
 
@@ -132,20 +130,20 @@ bool StoreConf::getString(const string& stringName,
   // file::fs_type = std
   // can be used by this file store and all descendant file stores.
   for (const StoreConf* pconf = this; pconf;
-        pconf = const_cast<StoreConf*>(pconf->parent.get())) {
-    string_map_t::const_iterator iter = pconf->values.find(inheritedName);
-    if (iter != pconf->values.end()) {
-      _return = iter->second;
+        pconf = const_cast<StoreConf*>(pconf->parent_.get())) {
+    StringMap::const_iterator iter = pconf->values_.find(inheritedName);
+    if (iter != pconf->values_.end()) {
+      *value = iter->second;
       found = true;
       break;
     }
   }
-  // if we didn't find any.  then try g_Handler's config
+  // if we didn't find any.  then try g_handler's config
   if (!found) {
-    const StoreConf& gconf = g_Handler->getConfig();
-    string_map_t::const_iterator iter = gconf.values.find(inheritedName);
-    if (iter != gconf.values.end()) {
-      _return = iter->second;
+    const StoreConf& gconf = g_handler->getConfig();
+    StringMap::const_iterator iter = gconf.values_.find(inheritedName);
+    if (iter != gconf.values_.end()) {
+      *value = iter->second;
       found = true;
     }
   }
@@ -153,7 +151,7 @@ bool StoreConf::getString(const string& stringName,
 }
 
 void StoreConf::setString(const string& stringName, const string& value) {
-  values[stringName] = value;
+  values_[stringName] = value;
 }
 
 void StoreConf::setUnsigned(const string& stringName, unsigned long value) {
@@ -162,7 +160,7 @@ void StoreConf::setUnsigned(const string& stringName, unsigned long value) {
   setString(stringName, oss.str());
 }
 
-void StoreConf::setUnsignedLongLong(const string& stringName, unsigned long long value) {
+void StoreConf::setUint64(const string& stringName, uint64_t value) {
   ostringstream oss;
   oss << value;
   setString(stringName, oss.str());
@@ -171,9 +169,9 @@ void StoreConf::setUnsignedLongLong(const string& stringName, unsigned long long
 // reads and parses the config data
 void StoreConf::parseConfig(const string& filename) {
 
-  queue<string> config_strings;
+  queue<string> configStrings;
 
-  if (readConfFile(filename, config_strings)) {
+  if (readConfFile(filename, &configStrings)) {
     LOG_OPER("got configuration data from file <%s>", filename.c_str());
   } else {
     ostringstream msg;
@@ -181,21 +179,22 @@ void StoreConf::parseConfig(const string& filename) {
     throw runtime_error(msg.str());
   }
 
-  parseStore(config_strings, this);
+  parseStore(configStrings, this);
 }
 
-// Side-effects:  - removes items from raw_config and adds items to parsed_config
+// Side-effects:  - removes items from rawConfig and adds items to parsedConfig
 //
 // Returns true if a valid entry was found
-bool StoreConf::parseStore(queue<string>& raw_config, /*out*/ StoreConf* parsed_config) {
+bool StoreConf::parseStore(queue<string>& rawConfig,
+                           /*out*/ StoreConf* parsedConfig) {
 
-  int store_index = 0; // used to give things named "store" different names
+  int storeIndex = 0; // used to give things named "store" different names
 
   string line;
-  while (!raw_config.empty()) {
+  while (!rawConfig.empty()) {
 
-    line = raw_config.front();
-    raw_config.pop();
+    line = rawConfig.front();
+    rawConfig.pop();
 
     // remove leading and trailing whitespace
     line = trimString(line);
@@ -223,22 +222,23 @@ bool StoreConf::parseStore(queue<string>& raw_config, /*out*/ StoreConf* parsed_
         LOG_OPER("Bad config - line %s has a < but not a >", line.c_str());
         continue;
       }
-      string store_name = line.substr(1, pos - 1);
+      string storeName = line.substr(1, pos - 1);
 
-      pStoreConf new_store(new StoreConf);
-      if (parseStore(raw_config, new_store.get())) {
-        if (0 == store_name.compare("store")) {
+      StoreConfPtr newStore(new StoreConf);
+      if (parseStore(rawConfig, newStore.get())) {
+        if (0 == storeName.compare("store")) {
           // This is a special case for the top-level stores. They share
           // the same name, so we append an index to put them in the map
           ostringstream oss;
-          oss << store_index;
-          store_name += oss.str();
-          ++store_index;
+          oss << storeIndex;
+          storeName += oss.str();
+          ++storeIndex;
         }
-        if (parsed_config->stores.find(store_name) != parsed_config->stores.end()) {
-          LOG_OPER("Bad config - duplicate store name %s", store_name.c_str());
+        StoreConfMap& stores = parsedConfig->stores_;
+        if (stores.find(storeName) != stores.end()) {
+          LOG_OPER("Bad config - duplicate store name %s", storeName.c_str());
         }
-        parsed_config->stores[store_name] = new_store;
+        stores[storeName] = newStore;
       }
     } else {
       string::size_type eq = line.find('=');
@@ -252,10 +252,10 @@ bool StoreConf::parseStore(queue<string>& raw_config, /*out*/ StoreConf* parsed_
         arg = trimString(arg);
         val = trimString(val);
 
-        if (parsed_config->values.find(arg) != parsed_config->values.end()) {
+        if (parsedConfig->values_.find(arg) != parsedConfig->values_.end()) {
           LOG_OPER("Bad config - duplicate key %s", arg.c_str());
         }
-        parsed_config->values[arg] = val;
+        parsedConfig->values_[arg] = val;
       }
     }
   }
@@ -277,51 +277,53 @@ string StoreConf::trimString(const string& str) {
 
 // reads every line from the file and pushes then onto _return
 // returns false on error
-bool StoreConf::readConfFile(const string& filename, queue<string>& _return) {
+bool StoreConf::readConfFile(const string& filename, queue<string>* contents) {
   string line;
-  ifstream config_file;
+  ifstream configFile;
 
-  config_file.open(filename.c_str());
-  if (!config_file.good()) {
+  configFile.open(filename.c_str());
+  if (!configFile.good()) {
     return false;
   }
 
-  while (getline(config_file, line)) {
-    _return.push(line);
+  while (getline(configFile, line)) {
+    contents->push(line);
   }
 
-  config_file.close();
+  configFile.close();
   return true;
 }
 
 // serialize StoreConf
-ostream& operator<<(ostream& os, const StoreConf& sconf) {
-  return sconf.print(os, 0);
+ostream& operator<<(ostream& os, const StoreConf& storeConf) {
+  return storeConf.print(os, 0);
 }
 
-static string indent(uint32_t depth, bool useSpace, uint32_t tabw) {
-  int len = useSpace ? depth * tabw : depth;
+static string indent(uint32_t depth, bool useSpace, uint32_t tabWidth) {
+  int len = useSpace ? depth * tabWidth : depth;
   return string(len, useSpace ? ' ' : '\t');
 }
 
 ostream& StoreConf::print(ostream& os, uint32_t depth,
-                          bool useSpace, uint32_t tabw) const {
+                          bool useSpace, uint32_t tabWidth) const {
   // we only need to iterator through keys. as map guaranteed keys
   // are weakly ordered, so we will get consistent output.
-  for (string_map_t::const_iterator iter = values.begin();
-        iter != values.end(); iter++) {
-    os << indent(depth, useSpace, tabw) << iter->first
+  for (StringMap::const_iterator iter = values_.begin();
+        iter != values_.end(); iter++) {
+    os << indent(depth, useSpace, tabWidth) << iter->first
        << "=" << iter->second << endl;
   }
   // print out sub stores
-  for (store_conf_map_t::const_iterator iter = stores.begin();
-        iter != stores.end(); iter++) {
-    os << indent(depth, useSpace, tabw) << "<" << iter->first << ">"
+  for (StoreConfMap::const_iterator iter = stores_.begin();
+        iter != stores_.end(); iter++) {
+    os << indent(depth, useSpace, tabWidth) << "<" << iter->first << ">"
        << endl;
-    iter->second->print(os, depth + 1, useSpace, tabw);
-    os << indent(depth, useSpace, tabw) << "</" << iter->first << ">"
-    << endl;
+    iter->second->print(os, depth + 1, useSpace, tabWidth);
+    os << indent(depth, useSpace, tabWidth) << "</" << iter->first << ">"
+       << endl;
   }
 
   return os;
 }
+
+} //! namespace scribe

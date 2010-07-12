@@ -21,7 +21,9 @@
 #ifndef SCRIBE_CONF_H
 #define SCRIBE_CONF_H
 
-#include "common.h"
+#include "Common.h"
+
+namespace scribe {
 
 /*
  * This class reads and parses a configuration
@@ -32,9 +34,9 @@
  * changing the code in this class.
  */
 class StoreConf;
-typedef boost::shared_ptr<StoreConf> pStoreConf;
-typedef std::map<std::string, std::string> string_map_t;
-typedef std::map<std::string, pStoreConf> store_conf_map_t;
+typedef shared_ptr<StoreConf>      StoreConfPtr;
+typedef map<string, string>        StringMap;
+typedef map<string, StoreConfPtr>  StoreConfMap;
 
 std::ostream& operator<<(std::ostream& os, const StoreConf& storeConf);
 
@@ -47,31 +49,33 @@ class StoreConf {
   // Return value is true if the key exists, and false if it doesn't.
   // This doesn't check for garbage ints or empty strings.
   // The return parameter is untouched if the key isn't found.
-  void getAllStores(std::vector<pStoreConf>& _return);
-  bool getStore(const std::string& storeName, pStoreConf& _return);
-  bool getInt(const std::string& intName, long int& _return) const;
-  bool getUnsigned(const std::string& intName, unsigned long int& _return) const;
-  bool getUnsignedLongLong(const std::string& intName, unsigned long long& _return) const;
-  bool getFloat(const std::string& floatName, float & _return) const;
-  bool getString(const std::string& stringName, std::string& _return) const;
+  void getAllStores(vector<StoreConfPtr>* value);
+  bool getStore(const string& storeName, StoreConfPtr* value);
+  bool getInt(const string& intName, long* value) const;
+  bool getUnsigned(const string& intName, unsigned long* value) const;
+  bool getUint64(const string& intName, uint64_t* value) const;
+  bool getFloat(const string& floatName, float* value) const;
+  bool getString(const string& stringName, string* value) const;
 
-  void setString(const std::string& stringName, const std::string& value);
-  void setUnsigned(const std::string& intName, unsigned long value);
-  void setUnsignedLongLong(const std::string& intName, unsigned long long value);
+  void setString(const string& stringName, const string& value);
+  void setUnsigned(const string& intName, unsigned long value);
+  void setUint64(const string& intName, uint64_t value);
 
   // Reads configuration from a file and throws an exception if it fails.
-  void parseConfig(const std::string& filename);
-  void setParent(pStoreConf parent);
+  void parseConfig(const string& filename);
+  void setParent(StoreConfPtr parent);
  private:
-  string_map_t values;
-  store_conf_map_t stores;
-  pStoreConf parent;
-  static bool parseStore(/*in,out*/ std::queue<std::string>& raw_config,
-                         /*out*/ StoreConf* parsed_config);
-  static std::string trimString(const std::string& str);
-  bool readConfFile(const std::string& filename, std::queue<std::string>& _return);
+  StringMap values_;
+  StoreConfMap stores_;
+  StoreConfPtr parent_;
+  static bool parseStore(/*in,out*/ queue<string>& rawConfig,
+                         /*out*/ StoreConf* parsedConfig);
+  static string trimString(const string& str);
+  bool readConfFile(const string& filename, queue<string>* contents);
   std::ostream& print(std::ostream& os, uint32_t depth, bool useSpace = true,
-                 uint32_t tabw = 2) const;
+                      uint32_t tabWidth = 2) const;
 };
 
-#endif //!defined SCRIBE_CONF_H
+} //! namespace scribe
+
+#endif //! SCRIBE_CONF_H

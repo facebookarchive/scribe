@@ -20,32 +20,10 @@
 #ifndef SCRIBE_ENV
 #define SCRIBE_ENV
 
-#include "thrift/protocol/TBinaryProtocol.h"
-#include "thrift/server/TNonblockingServer.h"
-#include "thrift/concurrency/ThreadManager.h"
-#include "thrift/concurrency/PosixThreadFactory.h"
-#include "thrift/concurrency/Mutex.h"
-#include "thrift/transport/TSocket.h"
-#include "thrift/transport/TSocketPool.h"
-#include "thrift/transport/TServerSocket.h"
-#include "thrift/transport/TTransportUtils.h"
-#include "thrift/transport/THttpClient.h"
-#include "thrift/transport/TFileTransport.h"
-#include "thrift/transport/TBufferTransports.h"
-#include "thrift/transport/TSimpleFileTransport.h"
+namespace scribe {
 
-#include "fb303/FacebookBase.h"
-
-#include "src/gen-cpp/scribe.h"
-#include "src/gen-cpp/BucketStoreMapping.h"
-
-typedef boost::shared_ptr<scribe::thrift::LogEntry> logentry_ptr_t;
-typedef std::vector<logentry_ptr_t> logentry_vector_t;
-typedef std::vector<std::pair<std::string, int> > server_vector_t;
-
-// scribe version
-const std::string scribeversion("2.2");
-#define DEFAULT_CONF_FILE_LOCATION "/usr/local/scribe/scribe.conf"
+const char* const kScribeVersion           = "2.2";
+const char* const kDefaultConfFileLocation = "/usr/local/scribe/scribe.conf";
 
 /*
  * This file contains methods for handling tasks that depend
@@ -57,6 +35,7 @@ const std::string scribeversion("2.2");
 /*
  * Debug logging
  */
+#ifndef LOG_OPER
 #define LOG_OPER(format_string,...)                                     \
   {                                                                     \
     time_t now;                                                         \
@@ -66,9 +45,8 @@ const std::string scribeversion("2.2");
     dbgtime[24] = '\0';                                                 \
     fprintf(stderr,"[%s] " #format_string " \n", dbgtime,##__VA_ARGS__); \
   }
+#endif
 
-
-namespace scribe {
 
 /*
  * Network based configuration and directory service
@@ -77,9 +55,9 @@ namespace scribe {
 namespace network_config {
   // gets a vector of machine/port pairs for a named service
   // returns true on success
-  bool getService(const std::string& serviceName,
-                         const std::string& options,
-                         server_vector_t& _return);
+  bool getService(const string& serviceName,
+                         const string& options,
+                         ServerVector* servers);
 
 } // !namespace scribe::network_config
 
@@ -88,11 +66,9 @@ namespace network_config {
  */
 
 namespace concurrency {
-  using apache::thrift::concurrency::ReadWriteMutex;
-
   // returns a new instance of read/write mutex.
   // you can choose different implementations based on your needs.
-  boost::shared_ptr<ReadWriteMutex> createReadWriteMutex();
+  shared_ptr<ReadWriteMutex> createReadWriteMutex();
 
 } // !namespace scribe::concurrency
 
@@ -120,7 +96,7 @@ class integerhash {
 class strhash {
  public:
   // hash operator
-  size_t operator()(const std::string &x) const;
+  size_t operator()(const string &x) const;
 
   size_t operator()(const char *x) const;
 
@@ -139,4 +115,4 @@ void stopServer();
 
 } // !namespace scribe
 
-#endif // SCRIBE_ENV
+#endif //! SCRIBE_ENV

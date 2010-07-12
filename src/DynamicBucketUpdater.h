@@ -20,11 +20,11 @@
 #ifndef SCRIBE_DYNAMIC_BUCKET_UPDATER_H
 #define SCRIBE_DYNAMIC_BUCKET_UPDATER_H
 
-#include "common.h"
-#include "conf.h"
+#include "Common.h"
+#include "Conf.h"
+#include "gen-cpp/BucketStoreMapping.h"
 
-using std::string;
-using std::map;
+namespace scribe {
 
 /**
   * DynamicBucketUpdater updates a bucket store's bucket id to host:port
@@ -33,21 +33,23 @@ using std::map;
 class DynamicBucketUpdater {
  public:
   // bucket updater connection error
-  static const char *FB303_ERR_CONNECT;
+  static const char* const kFb303ErrConnect;
   // error calling bucketupdater.thrift
-  static const char *FB303_ERR_THRIFTCALL;
+  static const char* const kFb303ErrThriftCall;
   // bucket updater return empty result
-  static const char *FB303_ERR_EMPTYRESULT;
+  static const char* const kFb303ErrEmptyResult;
   // number of times a remote updater has been called
-  static const char *FB303_REMOTEUPDATE;
+  static const char* const kFb303RemoteUpdate;
   // number of buckets that have been updated
-  static const char *FB303_BUCKETSUPDATED;
+  static const char* const kFb303BucketsUpdated;;
   // missing a bid mapping
-  static const char *FB303_ERR_NOMAPPING;
+  static const char* const kFb303ErrNoMapping;
 
-  static bool getHost(const std::string& category, const StoreConf* pconf, std::string& host, uint32_t& port);
+  static bool getHost(const string& category,
+                      const StoreConf* pconf,
+                      string& host, uint32_t& port);
 
-  static bool isConfigValid(const std::string& category, const StoreConf* pconf);
+  static bool isConfigValid(const string& category, const StoreConf* pconf);
 
   /**
     * Return host, port given a key and bucket id, bid, combination.
@@ -69,7 +71,7 @@ class DynamicBucketUpdater {
     * @param sendTimeout send timeout
     * @param recvTimeout receive timeout
     */
-  static bool getHost(facebook::fb303::FacebookBase *fbBase,
+  static bool getHostByService(fb303::FacebookBase *fbBase,
                       const string &category,
                       uint32_t ttl,
                       uint64_t bid,
@@ -102,7 +104,7 @@ class DynamicBucketUpdater {
     * @param sendTimeout send timeout
     * @param recvTimeout receive timeout
     */
-  static bool getHost(facebook::fb303::FacebookBase *fbBase,
+  static bool getHostByRemoteHostPort(fb303::FacebookBase *fbBase,
                       const string &category,
                       uint32_t ttl,
                       uint64_t bid,
@@ -115,28 +117,6 @@ class DynamicBucketUpdater {
                       uint32_t recvTimeout = 150);
 
  protected:
-  /**
-    * actual implementation of getHost.
-    *
-    * @param category the category name, or any identifier that uniquely
-    *        identifies a bucket store.
-    * @param ttl ttl in seconds
-    * @param bid bucket id
-    * @param host the output parameter that receives the host output.
-    *        If no mapping is found, this variable is not modified.
-    * @param port the output parameter that receives the host output.
-    *        If no mapping is found, this variable is not modified.
-    */
-  bool getHostInternal(const string &category,
-                      uint32_t ttl,
-                      uint64_t bid,
-                      string &host,
-                      uint32_t &port,
-                      string updateHost,
-                      uint32_t updatePort,
-                      uint32_t connTimeout,
-                      uint32_t sendTimeout,
-                      uint32_t recvTimeout);
   /**
     * Given a category name, remote host:port, current time, and category
     * mapping, performs a periodic update.  The current mapping will be
@@ -164,24 +144,30 @@ class DynamicBucketUpdater {
                      uint32_t recvTimeout = 150);
 
   struct HostEntry {
-    string     host_;
-    uint32_t   port_;
+    string     host;
+    uint32_t   port;
   };
 
   struct CategoryEntry {
     CategoryEntry() {}
-    CategoryEntry(string category, uint32_t ttl) : category_(category), ttl_(ttl),
-                                                   lastUpdated_(0) {
+    CategoryEntry(string category, uint32_t ttl) : category(category), ttl(ttl),
+                                                   lastUpdated(0) {
     }
 
-    string    category_;
-    uint32_t  ttl_;
-    time_t    lastUpdated_;
-    map<uint64_t, HostEntry> bidMap_;
+    string           category;
+    uint32_t         ttl;
+    unsigned long    lastUpdated;
+    map<uint64_t, HostEntry> bidMap;
   };
 
   // category and bid to HostEntry map
   typedef map<string, CategoryEntry> CatBidToHostMap;
+
+  /**
+   * Copy out host, port given a CategoryEntry object.
+   */
+  bool getHostCommon(uint64_t bid, const CategoryEntry& catEnt,
+                     string& host, uint32_t& port);
 
   /**
     * Given a category name, remote host and port, query bucket mapping
@@ -206,7 +192,7 @@ class DynamicBucketUpdater {
                       uint32_t sendTimeout,
                       uint32_t recvTimeout);
 
-  static DynamicBucketUpdater *getInstance(facebook::fb303::FacebookBase *fbBase);
+  static DynamicBucketUpdater *getInstance(fb303::FacebookBase *fbBase);
 
   /**
     * Setup fb303 counters.
@@ -214,21 +200,19 @@ class DynamicBucketUpdater {
   void initFb303Counters();
 
   static DynamicBucketUpdater *instance_;
-  static apache::thrift::concurrency::Mutex instanceLock_;
-  facebook::fb303::FacebookBase *fbBase_;
-  apache::thrift::concurrency::Mutex lock_;
+  static Mutex  instanceLock_;
+  fb303::FacebookBase *fbBase_;
+  Mutex           lock_;
   CatBidToHostMap catMap_;
 
   void addStatValue(string name, uint64_t value) {
-#ifdef FACEBOOK
     if (fbBase_) {
       fbBase_->addStatValue(name, value);
     }
-#endif
   }
 
   // make singleton
-  DynamicBucketUpdater(facebook::fb303::FacebookBase *fbBase)
+  DynamicBucketUpdater(fb303::FacebookBase *fbBase)
       : fbBase_(fbBase) {
     initFb303Counters();
   }
@@ -236,4 +220,6 @@ class DynamicBucketUpdater {
   DynamicBucketUpdater(const DynamicBucketUpdater& other) {}
 };
 
-#endif // SCRIBE_DYNAMIC_BUCKET_UPDATER_H
+} //! namespace scribe
+
+#endif //! SCRIBE_DYNAMIC_BUCKET_UPDATER_H

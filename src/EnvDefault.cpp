@@ -21,19 +21,11 @@
 // @author Avinash Lakshman
 // @author Anthony Giardullo
 
-#include "common.h"
-#include "scribe_server.h"
-
-using namespace apache::thrift;
-using namespace apache::thrift::protocol;
-using namespace apache::thrift::transport;
-using namespace apache::thrift::server;
-using namespace apache::thrift::concurrency;
+#include "Common.h"
+#include "ScribeServer.h"
 
 using namespace scribe::thrift;
 using namespace scribe::concurrency;
-
-using boost::shared_ptr;
 
 namespace scribe {
 
@@ -41,9 +33,9 @@ namespace scribe {
  * Network configuration and directory services
  */
 
-bool network_config::getService(const std::string& serviceName,
-                                        const std::string& options,
-                                        server_vector_t& _return) {
+bool network_config::getService(const string& serviceName,
+                                        const string& options,
+                                        ServerVector* servers) {
   return false;
 }
 
@@ -85,7 +77,7 @@ uint32_t integerhash::hash32(uint32_t key) {
   return key;
 }
 
-size_t strhash::operator()(const std::string &x) const {
+size_t strhash::operator()(const string &x) const {
   return (size_t)hash32(x.c_str());
 }
 
@@ -109,39 +101,40 @@ uint32_t strhash::hash32(const char *s) {
 /*
  * Starting a scribe server.
  */
-// note: this function uses global g_Handler.
+// note: this function uses global g_handler.
 void startServer() {
-  boost::shared_ptr<TProcessor> processor(new scribeProcessor(g_Handler));
+  shared_ptr<TProcessor> processor(new scribeProcessor(g_handler));
   /* This factory is for binary compatibility. */
-  boost::shared_ptr<TProtocolFactory> protocol_factory(
+  shared_ptr<TProtocolFactory> protocolFactory(
     new TBinaryProtocolFactory(0, 0, false, false)
   );
-  boost::shared_ptr<ThreadManager> thread_manager;
+  shared_ptr<ThreadManager> threadManager;
 
-  if (g_Handler->numThriftServerThreads > 1) {
+  if (g_handler->numThriftServerThreads > 1) {
     // create a ThreadManager to process incoming calls
-    thread_manager = ThreadManager::newSimpleThreadManager(
-      g_Handler->numThriftServerThreads
+    threadManager = ThreadManager::newSimpleThreadManager(
+      g_handler->numThriftServerThreads
+      g_handler->getMaxConcurrentRequests()
     );
 
-    shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
-    thread_manager->threadFactory(thread_factory);
-    thread_manager->start();
+    shared_ptr<PosixThreadFactory> threadFactory(new PosixThreadFactory());
+    threadManager->threadFactory(threadFactory);
+    threadManager->start();
   }
 
   shared_ptr<TNonblockingServer> server(new TNonblockingServer(
                                           processor,
-                                          protocol_factory,
-                                          g_Handler->port,
-                                          thread_manager
+                                          protocolFactory,
+                                          g_handler->port,
+                                          threadManager
                                         ));
-  g_Handler->setServer(server);
+  g_handler->setServer(server);
 
-  LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
+  LOG_OPER("Starting scribe server on port %lu", g_handler->port);
   fflush(stderr);
 
   // throttle concurrent connections
-  unsigned long mconn = g_Handler->getMaxConn();
+  unsigned long mconn = g_handler->getMaxConn();
   if (mconn > 0) {
     LOG_OPER("Throttle max_conn to %lu", mconn);
     server->setMaxConnections(mconn);

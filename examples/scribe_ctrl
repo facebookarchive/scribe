@@ -26,7 +26,7 @@ isFacebook = 0
 if (isFacebook == 1):
     # put your own path here!
     sys.path.insert(0, '/mytrunk/fbcode-test/common/fb303/scripts')
-    import fb303_simple_mgmt
+    from fb303_scripts import *
 else:
     from fb303_scripts import *
 

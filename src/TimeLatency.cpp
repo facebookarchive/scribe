@@ -21,14 +21,11 @@
 // @author Anthony Giardullo
 // @author John Song
 
-#include "timelatency.h"
+#include "TimeLatency.h"
 
-const string METADATA_TIMESTAMP = string("timestamp");
+using namespace boost;
 
-using namespace apache::thrift;
-using namespace scribe::thrift;
-using namespace std;
-using boost::shared_ptr;
+namespace scribe {
 
 // get timestamp in ms
 // assumes user checked isTimeStampAndHopCountPresent
@@ -39,33 +36,41 @@ unsigned long getTimeStamp(const LogEntry& message) {
     return 0;
   }
 
-  const map <string,string> & mymetadata = message.metadata;
-  map <string,string>::const_iterator iter;
-  iter = mymetadata.find(METADATA_TIMESTAMP);
-  if (iter == mymetadata.end()) {
+  const map<string,string>& myMetadata = message.metadata;
+  map<string,string>::const_iterator iter;
+  iter = myMetadata.find(kMetadataTimestamp);
+  if (iter == myMetadata.end()) {
     LOG_OPER("Warning: Timestamp not present");
     return 0;
   } else {
-    return boost::lexical_cast<unsigned long> (iter->second);
+    const string& timestamp = iter->second;
+    unsigned long retVal =  std::strtoul(timestamp.c_str(), NULL, 10);
+    if (retVal == ULONG_MAX && errno == ERANGE) {
+      LOG_OPER("Warning: Timestamp corrupted");
+      return 0;
+    } else {
+      return retVal;
+    }
   }
 }
 
 // update timeandhop
 void updateTimeStamp(LogEntry& message, unsigned long ts) {
-
-  map <string,string> & mymetadata = message.metadata;
-  mymetadata[METADATA_TIMESTAMP] = boost::lexical_cast<string> (ts);
+  map<string,string>& myMetadata = message.metadata;
+  char buf[std::numeric_limits<unsigned long>::digits10 + 3];
+  std::snprintf(buf, sizeof(buf), "%lu", ts);
+  myMetadata[kMetadataTimestamp].assign(buf);
   message.__isset.metadata = true;
 }
 
 // remove timestamp from the message
 void removeTimeStamp(LogEntry& message) {
 
-  map <string,string> & mymetadata = message.metadata;
-  mymetadata.erase(METADATA_TIMESTAMP);
-  if (mymetadata.empty()) {
+  map<string,string>& myMetadata = message.metadata;
+  myMetadata.erase(kMetadataTimestamp);
+  if (myMetadata.empty()) {
     message.__isset.metadata = false;
   }
 }
 
-
+} //! namespace scribe

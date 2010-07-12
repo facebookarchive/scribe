@@ -1,34 +1,32 @@
 /* Functions for latency computation
  */
 
-#ifndef TIME_LATENCY_H
-#define TIME_LATENCY_H
+#ifndef SCRIBE_TIME_LATENCY_H
+#define SCRIBE_TIME_LATENCY_H
 
-#include "common.h"
+#include "Common.h"
 #include <sys/time.h>
 #include <ctime>
 
-using std::string;
-using scribe::thrift::LogEntry;
+namespace scribe {
 
-extern const string METADATA_TIMESTAMP;
-extern const string METADATA_HOPCOUNT;
+const string kMetadataTimestamp = "timestamp";
 
 // current time in milliseconds
 unsigned long getCurrentTimeStamp();
 
 // check if metadata is present and if so
 // are the timestamp field present
-bool isTimeStampPresent(const LogEntry&);
+bool isTimeStampPresent(const LogEntry& entry);
 
 // get timestamp in ms
-unsigned long getTimeStamp(const LogEntry&);
+unsigned long getTimeStamp(const LogEntry& entry);
 
 // update timestamp
-void updateTimeStamp(LogEntry&, unsigned long ts);
+void updateTimeStamp(LogEntry& entry, unsigned long ts);
 
 // remove timestamp from the message
-void removeTimeStamp(LogEntry&);
+void removeTimeStamp(LogEntry& entry);
 
 
 // current time in milliseconds
@@ -40,8 +38,10 @@ inline unsigned long getCurrentTimeStamp() {
 inline bool isTimeStampPresent(const LogEntry& message) {
   return (
     message.__isset.metadata &&
-    message.metadata.find(METADATA_TIMESTAMP) != message.metadata.end()
+    message.metadata.find(kMetadataTimestamp) != message.metadata.end()
   );
 }
 
-#endif
+} //! namespace scribe
+
+#endif //! SCRIBE_TIME_LATENCY_H

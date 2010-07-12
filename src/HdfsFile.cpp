@@ -5,67 +5,71 @@
 // http://developers.facebook.com/scribe/
 //
 
-#include <limits>
 #include <boost/scoped_ptr.hpp>
-#include "common.h"
-#include "file.h"
+
+#include "Common.h"
+#include "FileInterface.h"
 #include "HdfsFile.h"
 
-using namespace std;
-using boost::scoped_ptr;
+using namespace boost;
 
-HdfsFile::HdfsFile(const std::string& name) : FileInterface(name, false), inputBuffer_(NULL), bufferSize_(0) {
+using scoped_ptr;
+
+namespace scribe {
+
+HdfsFile::HdfsFile(const string& name)
+  : FileInterface(name, false), inputBuffer_(NULL), bufferSize_(0) {
   LOG_OPER("[hdfs] Connecting to HDFS for %s", name.c_str());
 
-  // First attempt to parse the hdfs cluster from the path name specified.
-  // If it fails, then use the default hdfs cluster.
-  fileSys = connectToPath(name.c_str());
+  // Attempt to parse the hdfs cluster from the path name specified.
+  fileSys_ = connectToPath(name);
 
-  if (fileSys == 0) {
+  if (fileSys_ == 0) {
     // ideally, we should throw an exception here, but the scribe store code
     // does not handle this elegantly now.
     LOG_OPER("[hdfs] ERROR: HDFS is not configured for file: %s", name.c_str());
   }
-  hfile = 0;
+  hfile_ = 0;
+
 }
 
 HdfsFile::~HdfsFile() {
-  if (fileSys) {
-    LOG_OPER("[hdfs] disconnecting fileSys for %s", filename.c_str());
-    hdfsDisconnect(fileSys);
-    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
+  if (fileSys_) {
+    LOG_OPER("[hdfs] disconnecting fileSys_ for %s", filename_.c_str());
+    hdfsDisconnect(fileSys_);
+    LOG_OPER("[hdfs] disconnected fileSys_ for %s", filename_.c_str());
   }
-  fileSys = 0;
-  hfile = 0;
+  fileSys_ = 0;
+  hfile_ = 0;
 }
 
-// 1 for existence
-// 0 for not absence
-// -1 for error
-int HdfsFile::exists() {
-  if (!fileSys) {
-    return -1;
+// true for existence
+// false for not absence
+// throws exception for error
+bool HdfsFile::exists() {
+  if (!fileSys_) {
+    throw std::runtime_error("No Filesys in HdfsFile::exists");
   }
 
-  int value = hdfsExists(fileSys, filename.c_str());
+  int value = hdfsExists(fileSys_, filename_.c_str());
   if (value == 0) {
-    return 1;
+    return true;
   } else if (value == 1) {
-    return 0;
+    return false;
   } else {
-    return -1;
+    throw std::runtime_error(kErrorHdfsExists);
   }
 }
 
 bool HdfsFile::openRead() {
-  if (!fileSys) {
-    fileSys = connectToPath(filename.c_str());
+  if (!fileSys_) {
+    fileSys_ = connectToPath(filename_);
   }
-  if (fileSys) {
-    hfile = hdfsOpenFile(fileSys, filename.c_str(), O_RDONLY, 0, 0, 0);
+  if (fileSys_) {
+    hfile_ = hdfsOpenFile(fileSys_, filename_.c_str(), O_RDONLY, 0, 0, 0);
   }
-  if (hfile) {
-    LOG_OPER("[hdfs] opened for read %s", filename.c_str());
+  if (hfile_) {
+    LOG_OPER("[hdfs] opened for read %s", filename_.c_str());
     return true;
   }
   return false;
@@ -74,26 +78,34 @@ bool HdfsFile::openRead() {
 bool HdfsFile::openWrite() {
   int flags;
 
-  if (!fileSys) {
-    fileSys = connectToPath(filename.c_str());
+  if (!fileSys_) {
+    fileSys_ = connectToPath(filename_);
   }
-  if (!fileSys) {
-    return false;
-  }
-  if (hfile) {
-    LOG_OPER("[hdfs] already opened for write %s", filename.c_str());
+  if (!fileSys_) {
+    LOG_OPER("[hdfs] cannot open hdfs for write %s", filename_.c_str());
     return false;
   }
 
-  if (hdfsExists(fileSys, filename.c_str()) == 0) {
+  if (hfile_) {
+    LOG_OPER("[hdfs] already opened for write %s", filename_.c_str());
+    return false;
+  }
+
+
+  int ret = hdfsExists(fileSys_, filename.c_str());
+  if (0 == ret) {
     flags = O_WRONLY|O_APPEND; // file exists, append to it.
-  } else {
+  } else if (1 == ret) {
     flags = O_WRONLY;
   }
-  hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
-  if (hfile) {
+  else {
+    throw std::runtime_error(kErrorHdfsExists);
+  }
+
+  hfile_ = hdfsOpenFile(fileSys_, filename_.c_str(), flags, 0, 0, 0);
+  if (hfile_) {
     if (flags & O_APPEND) {
-      LOG_OPER("[hdfs] opened for append %s", filename.c_str());
+      LOG_OPER("[hdfs] opened for append %s", filename_.c_str());
     } else {
       LOG_OPER("[hdfs] opened for write %s", filename.c_str());
     }
@@ -103,33 +115,36 @@ bool HdfsFile::openWrite() {
 }
 
 bool HdfsFile::openTruncate() {
-  LOG_OPER("[hdfs] truncate %s", filename.c_str());
+  LOG_OPER("[hdfs] truncate %s", filename_.c_str());
   deleteFile();
   return openWrite();
 }
 
 bool HdfsFile::isOpen() {
-   bool retVal = (hfile) ? true : false;
-   return retVal;
+  bool retVal = (hfile_) ? true : false;
+  return retVal;
 }
 
 void HdfsFile::close() {
-  if (fileSys) {
-    if (hfile) {
+  if (fileSys_) {
+    if (hfile_) {
       LOG_OPER("[hdfs] closing %s", filename.c_str());
-      hdfsCloseFile(fileSys, hfile );
+      hdfsCloseFile(fileSys_, hfile_);
+      LOG_OPER("[hdfs] closed %s", filename_.c_str());
+    } else {
+      LOG_OPER("[hdfs] No hfile_!  So no write/flush!");
     }
-    hfile = 0;
+    hfile_ = 0;
 
     // Close the file system
-    LOG_OPER("[hdfs] disconnecting fileSys for %s", filename.c_str());
-    hdfsDisconnect(fileSys);
-    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
-    fileSys = 0;
+    LOG_OPER("[hdfs] disconnecting fileSys_ for %s", filename_.c_str());
+    hdfsDisconnect(fileSys_);
+    LOG_OPER("[hdfs] disconnected fileSys_ for %s", filename_.c_str());
+    fileSys_ = 0;
   }
 }
 
-bool HdfsFile::write(const std::string& data) {
+bool HdfsFile::write(const string& data) {
   if (!isOpen()) {
     bool success = openWrite();
 
@@ -137,10 +152,10 @@ bool HdfsFile::write(const std::string& data) {
       return false;
     }
   }
-  tSize bytesWritten = hdfsWrite(fileSys, hfile, data.data(),
+
+  tSize bytesWritten = hdfsWrite(fileSys_, hfile_, data.data(),
                                  (tSize) data.length());
-  bool retVal = (bytesWritten == (tSize) data.length()) ? true : false;
-  return retVal;
+  return (bytesWritten == (tSize) data.length()) ? true : false;
 }
 
 void HdfsFile::flush() {
@@ -152,8 +167,8 @@ void HdfsFile::flush() {
 unsigned long HdfsFile::fileSize() {
   long size = 0L;
 
-  if (fileSys) {
-    hdfsFileInfo* pFileInfo = hdfsGetPathInfo(fileSys, filename.c_str());
+  if (fileSys_) {
+    hdfsFileInfo* pFileInfo = hdfsGetPathInfo(fileSys_, filename_.c_str());
     if (pFileInfo != NULL) {
       size = pFileInfo->mSize;
       hdfsFreeFileInfo(pFileInfo, 1);
@@ -163,51 +178,61 @@ unsigned long HdfsFile::fileSize() {
 }
 
 void HdfsFile::deleteFile() {
-  if (fileSys) {
-    hdfsDelete(fileSys, filename.c_str());
+  if (fileSys_) {
+    hdfsDelete(fileSys_, filename_.c_str());
   }
-  LOG_OPER("[hdfs] deleteFile %s", filename.c_str());
+  LOG_OPER("[hdfs] deleteFile %s", filename_.c_str());
 }
 
-void HdfsFile::listImpl(const std::string& path,
-                        std::vector<std::string>& _return) {
-  if (!fileSys) {
+void HdfsFile::listImpl(const string& path, vector<string>* files) {
+  if (!fileSys_) {
     return;
   }
 
-  int value = hdfsExists(fileSys, path.c_str());
-  if (value == 0) {
+  int value = hdfsExists(fileSys_, path.c_str());
+  switch (value) {
+  case 0: {
     int numEntries = 0;
     hdfsFileInfo* pHdfsFileInfo = 0;
-    pHdfsFileInfo = hdfsListDirectory(fileSys, path.c_str(), &numEntries);
-    if (pHdfsFileInfo) {
+    pHdfsFileInfo = hdfsListDirectory(fileSys_, path.c_str(), &numEntries);
+    if (numEntries >= 0) {
       for(int i = 0; i < numEntries; i++) {
         char* pathname = pHdfsFileInfo[i].mName;
         char* filename = rindex(pathname, '/');
         if (filename != NULL) {
-          _return.push_back(filename+1);
+          files->push_back(filename+1);
         }
       }
-      hdfsFreeFileInfo(pHdfsFileInfo, numEntries);
-    // A NULL indicates error
+      if (pHdfsFileInfo != NULL) {
+        hdfsFreeFileInfo(pHdfsFileInfo, numEntries);
+      }
     } else {
-      throw std::runtime_error("hdfsListDirectory call failed");
+      // numEntries < 0 indicates error
+      throw std::runtime_error(
+          string("hdfsListDirectory call failed with error ") +
+          boost::lexical_cast<string>(errno));
     }
-  } else if (value == -1) {
-    throw std::runtime_error("hdfsExists call failed");
+    break;
+  }
+  case 1:
+    // directory does not exist, do nothing
+    break;
+    // anything else should be an error
+  default:
+    throw std::runtime_error(kErrorHdfsExists);
   }
 }
 
-long HdfsFile::readNext(std::string& _return) {
+long HdfsFile::readNext(string* item) {
   /* choose a reasonable value for loss */
   return (-1000 * 1000 * 1000);
 }
 
-string HdfsFile::getFrame(unsigned data_length) {
-  return std::string();    // not supported
+string HdfsFile::getFrame(unsigned dataLength) {
+  return string();    // not supported
 }
 
-bool HdfsFile::createDirectory(std::string path) {
+bool HdfsFile::createDirectory(const string& path) {
   // opening the file will create the directories.
   return true;
 }
@@ -216,18 +241,17 @@ bool HdfsFile::createDirectory(std::string path) {
  * HDFS currently does not support symlinks. So we create a
  * normal file and write the symlink data into it
  */
-bool HdfsFile::createSymlink(std::string oldpath, std::string newpath) {
+bool HdfsFile::createSymlink(const string& oldPath, const string& newPath) {
   LOG_OPER("[hdfs] Creating symlink oldpath %s newpath %s",
-           oldpath.c_str(), newpath.c_str());
-  scoped_ptr<HdfsFile> link(new HdfsFile(newpath))
-;
+           oldPath.c_str(), newPath.c_str());
+  scoped_ptr<HdfsFile> link(new HdfsFile(newPath));
   if (link->openWrite() == false) {
     LOG_OPER("[hdfs] Creating symlink failed because %s already exists.",
-             newpath.c_str());
+             newPath.c_str());
     return false;
   }
-  if (link->write(oldpath) == false) {
-    LOG_OPER("[hdfs] Writing symlink %s failed", newpath.c_str());
+  if (link->write(oldPath) == false) {
+    LOG_OPER("[hdfs] Writing symlink %s failed", newPath.c_str());
     return false;
   }
   link->close();
@@ -238,43 +262,40 @@ bool HdfsFile::createSymlink(std::string oldpath, std::string newpath) {
  * If the URI is specified of the form
  * hdfs://server::port/path, then connect to the
  * specified cluster
+ * else connect to default
  */
-hdfsFS HdfsFile::connectToPath(const char* uri) {
-  const char proto[] = "hdfs://";
+hdfsFS HdfsFile::connectToPath(const string& uri) {
 
-  if (strncmp(proto, uri, strlen(proto)) != 0) {
+  if (uri.empty()) {
+    return NULL;
+  }
+
+  if (uri.find(kProto) != 0) {
     // uri doesn't start with hdfs:// -> use default:0, which is special
     // to libhdfs.
     return hdfsConnectNewInstance("default", 0);
   }
 
-  // Skip the hdfs:// part.
-  uri += strlen(proto);
-  // Find the next colon.
-  const char* colon = strchr(uri, ':');
-  // No ':' or ':' is the last character.
-  if (!colon || !colon[1]) {
-    LOG_OPER("[hdfs] Missing port specification: \"%s\"", uri);
+  vector <string> parts;
+  split(parts, uri, is_any_of(":/"), token_compress_on);
+  if (parts.size() < 3) {
     return NULL;
   }
-
-  char* endptr = NULL;
-  const long port = strtol(colon + 1, &endptr, 10);
-  if (port < 0) {
-    LOG_OPER("[hdfs] Invalid port specification (negative): \"%s\"", uri);
-    return NULL;
-  } else if (port > std::numeric_limits<tPort>::max()) {
-    LOG_OPER("[hdfs] Invalid port specification (out of range): \"%s\"", uri);
+  // parts[1] = hosts, parts[2] = port
+  string host(parts[1]);
+  tPort port;
+  try {
+    port = lexical_cast<tPort>(parts[2]);
+  } catch(const bad_lexical_cast&) {
+    LOG_OPER("[hdfs] lexical cast failed");
     return NULL;
   }
-
-  char* const host = (char*) malloc(colon - uri + 1);
-  memcpy((char*) host, uri, colon - uri);
-  host[colon - uri] = '\0';
 
   LOG_OPER("[hdfs] Before hdfsConnectNewInstance(%s, %li)", host, port);
-  hdfsFS fs = hdfsConnectNewInstance(host, port);
+  hdfsFS fs = hdfsConnectNewInstance(host.c_str(), port);
   LOG_OPER("[hdfs] After hdfsConnectNewInstance");
-  free(host);
   return fs;
 }
+
+} //! namespace scribe
+

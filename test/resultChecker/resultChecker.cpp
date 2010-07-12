@@ -21,6 +21,8 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <string.h>
+#include <stdlib.h>
 
 #define MAX_MESSAGE_LENGTH 1024
 
@@ -56,7 +58,7 @@ int main(int argc, char** argv) {
       fprintf(stderr, "Failed to open input file: %s\n", argv[i]);
       continue;
     }
-  
+
     while (infile.good()) {
       char buffer[MAX_MESSAGE_LENGTH];
       buffer[0] = 0;
@@ -83,7 +85,7 @@ int main(int argc, char** argv) {
       } // line isn't empty
     } // for each line
     infile.close();
-   
+
     printf("File <%s>: <%d> total <%d> out of order\n", argv[i], entries_this_file, bad_this_file);
     total_bad += bad_this_file;
     total_entries += entries_this_file;
