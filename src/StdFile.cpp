@@ -28,6 +28,7 @@ static const unsigned kInitialBufferSize = (64 * 1024);
 static const unsigned kLargeBufferSize   = (16 * kInitialBufferSize);
 
 using namespace boost;
+using namespace std;
 
 namespace scribe {
 
@@ -211,7 +212,7 @@ unsigned long StdFile::fileSize() {
   unsigned long size = 0;
   try {
     size = filesystem::file_size(filename_.c_str());
-  } catch(const exception& e) {
+  } catch(const std::exception& e) {
     LOG_OPER("Failed to get size for file <%s> error <%s>",
              filename_.c_str(), e.what());
     size = 0;
@@ -228,7 +229,7 @@ void StdFile::listImpl(const string& path, vector<string>* files) {
         files->push_back(dirIt->filename());
       }
     }
-  } catch (const exception& e) {
+  } catch (const std::exception& e) {
     LOG_OPER("exception <%s> listing files in <%s>",
              e.what(), path.c_str());
   }
@@ -241,7 +242,7 @@ void StdFile::deleteFile() {
 bool StdFile::createDirectory(const string& path) {
   try {
     filesystem::create_directories(path);
-  } catch(const exception& e) {
+  } catch(const std::exception& e) {
     LOG_OPER("Exception < %s > in StdFile::createDirectory for path %s ",
       e.what(),path.c_str());
     return false;

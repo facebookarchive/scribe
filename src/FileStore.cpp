@@ -31,7 +31,7 @@
 
 using namespace scribe::thrift;
 
-static const string kMetaLogfilePrefix = "scribe_meta<new_logfile>: ";
+static const std::string kMetaLogfilePrefix = "scribe_meta<new_logfile>: ";
 
 namespace scribe {
 
@@ -277,7 +277,7 @@ bool FileStore::writeMessages(LogEntryVectorPtr messages,
   unsigned long numBuffered = 0;
   unsigned long numWritten = 0;
   FileInterfacePtr writeFile;
-  unsigned long maxWriteSize = min(maxSize_, maxWriteSize_);
+  unsigned long maxWriteSize = std::min(maxSize_, maxWriteSize_);
   shared_ptr<TProtocol> protocol;
 
   protocol = TBinaryProtocolFactory().getProtocol(convertBuffer_);

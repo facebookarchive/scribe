@@ -23,6 +23,7 @@
 using namespace facebook::fb303;
 using namespace scribe;
 using namespace scribe::thrift;
+using namespace std;
 
 void printUsage(const char* programName) {
   cout << "Usage: " << programName << " [-p port] [-c config_file]" << endl;

@@ -17,7 +17,7 @@
 ## See accompanying file LICENSE or visit the Scribe site at:
 ## http://developers.facebook.com/scribe/
 
-include "fb303/if/fb303.thrift"
+include "fb303.thrift"
 
 namespace cpp scribe.thrift
 namespace java scribe.thrift

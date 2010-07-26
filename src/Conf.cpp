@@ -25,6 +25,7 @@
 #include "ScribeServer.h"
 
 using namespace boost;
+using namespace std;
 
 namespace scribe {
 
@@ -176,7 +177,7 @@ void StoreConf::parseConfig(const string& filename) {
   } else {
     ostringstream msg;
     msg << "Failed to open config file <" << filename << ">";
-    throw runtime_error(msg.str());
+    throw std::runtime_error(msg.str());
   }
 
   parseStore(configStrings, this);

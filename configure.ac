@@ -54,7 +54,7 @@ FB_ENABLE_FEATURE([USE_SCRIBE_HDFS], [hdfs])
 
 # Example: sets $(thrift_home) variable with default path set to /usr/local.
 FB_WITH_PATH([thrift_home], [thriftpath], [/usr/local])
-FB_WITH_PATH([fb303_home], [fb303path], [/usr/local])
+FB_WITH_PATH([fb303_home], [fb303path], [`pwd`/contrib/fb303])
 FB_WITH_PATH([smc_home], [smcpath], [${EXTERNAL_PATH}/services/trunk/src])
 FB_WITH_PATH([fb_home], [fbpath], [${EXTERNAL_PATH}/libfacebook])
 FB_WITH_PATH([hadoop_home], [hadooppath], [/usr/local])
@@ -63,6 +63,10 @@ FB_WITH_PATH([hadoop_home], [hadooppath], [/usr/local])
 AX_BOOST_BASE([1.36])
 AX_BOOST_SYSTEM
 AX_BOOST_FILESYSTEM
+
+# Require lib event > 1.0
+AX_LIB_EVENT([1.0])
+AM_CONDITIONAL([AMX_HAVE_LIBEVENT], [test "$success" = "yes"])
 
 # Generates Makefile from Makefile.am. Modify when new subdirs are added.
 # Change Makefile.am also to add subdirectly.

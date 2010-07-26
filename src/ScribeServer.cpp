@@ -28,6 +28,7 @@
 using namespace facebook;
 using namespace facebook::fb303;
 using namespace scribe::thrift;
+using namespace std;
 
 static const unsigned long kDefaultCheckPeriod       = 5;
 static const unsigned long kDefaultMaxMsgPerSecond   = 0;
@@ -586,8 +587,7 @@ void ScribeHandler::stopStores() {
 void ScribeHandler::shutdown() {
   stopStores();
   // calling stop to allow thrift to clean up client states and exit
-  server->stop();
-  scribe::stopServer();
+  scribe::stopServer(server_);
 }
 
 void ScribeHandler::reinitialize() {
@@ -660,7 +660,7 @@ void ScribeHandler::initialize() {
     LOG_OPER("port %lu from conf file overriding old port %lu", port, oldPort);
   }
   if (port <= 0) {
-    throw runtime_error("No port number configured");
+    throw std::runtime_error("No port number configured");
   }
 
   // check if config sets the size to use for the ThreadManager
@@ -671,7 +671,7 @@ void ScribeHandler::initialize() {
     if (numThriftServerThreads <= 0) {
       LOG_OPER("invalid value for num_thrift_server_threads: %lu",
           numThreads);
-      throw runtime_error("invalid value for num_thrift_server_threads");
+      throw std::runtime_error("invalid value for num_thrift_server_threads");
     }
   }
 

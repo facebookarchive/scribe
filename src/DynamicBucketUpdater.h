@@ -44,6 +44,8 @@ class DynamicBucketUpdater {
   static const char* const kFb303BucketsUpdated;;
   // missing a bid mapping
   static const char* const kFb303ErrNoMapping;
+  // number of service calls
+  static const char* const kFb303GetService;
 
   static bool getHost(const string& category,
                       const StoreConf* pconf,

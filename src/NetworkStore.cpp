@@ -30,8 +30,9 @@
 #include "ScribeServer.h"
 
 using namespace boost;
-using namespace scribe::thrift;
 using namespace facebook;
+using namespace scribe::thrift;
+using namespace std;
 
 static const unsigned long kDefaultNetworkStoreCacheTimeout   = 300;
 static const long          kDefaultSocketTimeoutMs            = 5000; // 5 sec

@@ -47,7 +47,6 @@ const char* const kDefaultConfFileLocation = "/usr/local/scribe/scribe.conf";
   }
 #endif
 
-
 /*
  * Network based configuration and directory service
  */
@@ -108,10 +107,18 @@ class strhash {
  */
 void startServer();
 
+/**
+ * Starting a background thread to check system memory.  When memory exceeds
+ * limit, crash server.
+ */
+void startMemCheckerThread(unsigned long cycle,
+                           float rssRatio,
+                           float swapRatio);
+
 /*
  * Stopping a scribe server.
  */
-void stopServer();
+void stopServer(shared_ptr<thrift::TNonblockingServer> & server);
 
 } // !namespace scribe
 

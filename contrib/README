@@ -1,0 +1,112 @@
+Introduction
+============
+
+This directory contains an updated version of the Facebook Bassline project
+(FB303) and some other Facebook packages FB303 depends on. Please see
+fb303/README for more details about FB303.
+
+
+License (See LICENSE file for full license)
+===========================================
+Copyright 2006- Facebook
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+Heirarchy
+=========
+
+contrib/
+
+  fb303/
+    Base files of the Facebook Bassline project
+
+  stats/
+    Statistical counters and histogram support for FB303
+
+  datastruct/
+    Auxiliary data structures
+
+
+Requirements
+============
+
+[boost] Boost C++ library (version 1.33 or later)
+[thrift] Thrift framework
+
+These libraries are open source and may be freely obtained, but they are not
+provided as a part of this distribution.
+
+
+To build
+========
+
+./bootstrap.sh <configure options>
+make
+
+(If you have multiple versions of Boost installed, see Boost configure options below.)
+
+Subsequent builds
+=================
+
+./bootstrap.sh <configure options>
+make
+
+OR
+
+./configure <configure options>
+make
+
+NOTE: After the first run with bootstrap.sh you can use "[ ./bootstrap | ./configure ] <options>" followed by "make"
+to create builds with different configurations. "bootstrap" can be passed the same arguments as "configure".
+
+Make sure that if you change configure.ac and|or add macros run "bootstrap.sh".
+to regenerate configure. In short whenever in doubt run "bootstrap.sh".
+
+
+Configure options
+=================
+
+To find all available configure options run
+./configure --help
+
+Use *only* the listed options.
+
+Examples:
+# To disable optimized builds and turn on debug. [ default has been set to optimized]
+./configure --disable-opt
+
+# To disable static libraries and enable shared libraries. [ default has been set to static]
+./configure --disable-static
+
+# To set thrift home to a non-default location
+./configure --with-thriftpath=/myhome/local/thrift
+
+# If Boost is installed in a non-default location or there are multiple Boost versions
+# installed, you will need to specify the Boost path and library names
+./configure --with-boost=/usr/local --with-boost-system=boost_system-gcc41-mt-1_33 --with-boost-filesystem=boost_filesystem-gcc41-mt-1_33
+
+
+Install
+=======
+
+as root:
+make install
+
+
+Acknowledgements
+================
+The build process for Scribe uses autoconf macro written by Thomas Porschberg to
+compile/link with Boost. See the m4 files in the aclocal subdirectory for more
+information.
+

@@ -50,11 +50,11 @@ class StdFile : public FileInterface,
   bool createSymlink(const string& newPath, const string& oldPath);
 
  private:
-  bool open(ios_base::openmode mode);
+  bool open(std::ios_base::openmode mode);
 
   char* inputBuffer_;
   unsigned bufferSize_;
-  fstream file_;
+  std::fstream file_;
 
   // disallow empty construction
   StdFile();

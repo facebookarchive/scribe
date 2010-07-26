@@ -19,10 +19,11 @@
 $GLOBALS['THRIFT_ROOT'] = '/usr/local/thrift/php/thrift';
 $GLOBALS['SCRIBE_ROOT'] = '/usr/local/thrift/php/thrift/packages';
 
-include_once $GLOBALS['SCRIBE_ROOT'].'/scribe.php';
-include_once $GLOBALS['THRIFT_ROOT'].'/protocol/TBinaryProtocol.php';
-include_once $GLOBALS['THRIFT_ROOT'].'/transport/TFramedTransport.php';
-include_once $GLOBALS['THRIFT_ROOT'].'/transport/TSocketPool.php';
+require_once $GLOBALS['THRIFT_ROOT'].'/Thrift.php';
+require_once $GLOBALS['THRIFT_ROOT'].'/protocol/TBinaryProtocol.php';
+require_once $GLOBALS['THRIFT_ROOT'].'/transport/TFramedTransport.php';
+require_once $GLOBALS['THRIFT_ROOT'].'/transport/TSocketPool.php';
+require_once $GLOBALS['SCRIBE_ROOT'].'/scribe/scribe.php';
 require_once $GLOBALS['SCRIBE_ROOT'].'/bucketupdater/BucketStoreMapping.php';
 
 function reload_test($file) {

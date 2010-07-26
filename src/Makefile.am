@@ -33,6 +33,7 @@ all:
 # hadoop_home
 #
 THRIFT = $(thrift_home)/bin/thrift
+THRIFT_CPPFLAGS = -I$(thrift_home)/include -I$(thrift_home)/include/thrift
 
 # User defined conditionals and conditonal statements set up in configure.ac.
 # FACEBOOK set in configure.ac
@@ -50,7 +51,7 @@ endif
 
 
 # Set libraries external to this component.
-EXTERNAL_LIBS = -L$(thrift_home)/lib -L$(fb303_home)/lib -L$(hadoop_home)/lib -lfb303 -lthrift -lthriftnb
+EXTERNAL_LIBS = -L$(thrift_home)/lib -L$(fb303_home)/cpp -L$(hadoop_home)/lib -lfb303 -lthrift -lthriftnb
 EXTERNAL_LIBS += -levent -lpthread
 if USE_SCRIBE_HDFS
   EXTERNAL_LIBS += -lhdfs -ljvm
@@ -61,13 +62,11 @@ endif
 # DO NOT USE CPPFLAGS, CXXFLAGS, CFLAGS, LDFLAGS here! Set in configure.ac and|or override on command line.
 # USE flags AM_CXXFLAGS, AM_CFLAGS, AM_CPPFLAGS, AM_LDFLAGS, LDADD in this section.
 
-AM_CPPFLAGS = -I..
-AM_CPPFLAGS += -I$(thrift_home)/include
-AM_CPPFLAGS += -I$(thrift_home)/include/thrift
-AM_CPPFLAGS += -I$(fb303_home)/include/thrift
-AM_CPPFLAGS += -I$(fb303_home)/include/thrift/fb303
+AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/contrib
+AM_CPPFLAGS += -I$(fb303_home)/cpp/gen-cpp
 AM_CPPFLAGS += -I$(hadoop_home)/include
 AM_CPPFLAGS += $(BOOST_CPPFLAGS)
+AM_CPPFLAGS += $(THRIFT_CPPFLAGS)
 AM_CPPFLAGS += $(FB_CPPFLAGS) $(DEBUG_CPPFLAGS)
 
 AM_LDFLAGS = $(BOOST_LDFLAGS) $(BOOST_SYSTEM_LIB) $(BOOST_FILESYSTEM_LIB)
@@ -98,8 +97,9 @@ endif
 
 # Binaries -- multiple progs can be defined.
 bin_PROGRAMS = scribed
-scribed_SOURCES = Main.cpp Store.cpp StoreQueue.cpp Conf.cpp File.cpp ConnPool.cpp StatCounters.cpp ScribeServer.cpp \
-                  BucketStore.cpp BufferStore.cpp FileStore.cpp NetworkStore.cpp NullStore.cpp ThriftFileStore.cpp \
+scribed_SOURCES = Main.cpp Conf.cpp ConnPool.cpp ScribeServer.cpp StatCounters.cpp StoreQueue.cpp TimeLatency.cpp \
+	          DynamicBucketUpdater.cpp NetworkDynamicConfig.cpp FileInterface.cpp StdFile.cpp \
+                  Store.cpp BucketStore.cpp BufferStore.cpp FileStoreBase.cpp FileStore.cpp NetworkStore.cpp NullStore.cpp ThriftFileStore.cpp \
                   $(FB_SOURCES) $(ENV_SOURCES)
 if USE_SCRIBE_HDFS
   scribed_SOURCES += HdfsFile.cpp
@@ -114,8 +114,8 @@ endif
 # Set up Thrift specific activity here.
 # We assume that a <name>+types.cpp will always be built from <name>.thrift.
 
-$(eval $(call thrift_template,.,$(srcdir)/../if/scribe.thrift, -I $(fb303_home)/share/ --gen cpp --gen py --gen php --gen java))
-$(eval $(call thrift_template,.,$(srcdir)/../if/bucketupdater.thrift, -I $(fb303_home)/share/ --gen cpp --gen py --gen php --gen java))
+$(eval $(call thrift_template,.,$(srcdir)/../if/scribe.thrift, -I $(fb303_home)/if/ --gen cpp --gen py --gen php --gen java))
+$(eval $(call thrift_template,.,$(srcdir)/../if/bucketupdater.thrift, -I $(fb303_home)/if/ --gen cpp --gen py --gen php --gen java))
 
 if FACEBOOK
   $(eval $(call thrift_template,.,$(smc_home)/if/ServiceManager.thrift,--gen cpp))

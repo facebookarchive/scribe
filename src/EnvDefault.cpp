@@ -113,7 +113,7 @@ void startServer() {
   if (g_handler->numThriftServerThreads > 1) {
     // create a ThreadManager to process incoming calls
     threadManager = ThreadManager::newSimpleThreadManager(
-      g_handler->numThriftServerThreads
+      g_handler->numThriftServerThreads,
       g_handler->getMaxConcurrentRequests()
     );
 
@@ -142,14 +142,25 @@ void startServer() {
   }
 
   server->serve();
-  // this function never returns
+  // this function never returns until server->stop() is called
 }
 
 /*
  * Stopping a scribe server.
  */
-void stopServer() {
+void stopServer(shared_ptr<TNonblockingServer>& server) {
+  server->stop(); // actually does nothing
+  // this is the only way to stop a TNonblockingServer for now
   exit(0);
+}
+
+/**
+ * Starting a background thread to check system memory.  When memory exceeds
+ * limit, crash server.
+ */
+void startMemCheckerThread(unsigned long cycle,
+                           float rssRatio,
+                           float swapRatio) {
 }
 
 } //! namespace scribe

@@ -21,14 +21,9 @@
 
 import sys
 
-#make this work for facebook environment too
-isFacebook = 0
-if (isFacebook == 1):
-    # put your own path here!
-    sys.path.insert(0, '/mytrunk/fbcode-test/common/fb303/scripts')
-    from fb303_scripts import *
-else:
-    from fb303_scripts import *
+# put your own path here!
+sys.path.insert(0, '/your-own-path/scribe/contrib/fb303/py/build/lib/')
+from fb303_scripts import *
 
 # thrift python packages need to be installed
 import thrift

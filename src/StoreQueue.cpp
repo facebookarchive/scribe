@@ -325,17 +325,23 @@ void StoreQueue::threadMember() {
 
     if (!stop) {
       // set timeout to when we need to handle messages or do a periodic check
-      struct timespec absTimeout;
-      absTimeout.tv_sec = min(lastPeriodicCheck + checkPeriod_,
-                              lastHandleMessages + maxWriteInterval_);
-      absTimeout.tv_nsec = 0;
+      uint64_t waitTime = 1000 * std::min(lastPeriodicCheck + checkPeriod_,
+                                      lastHandleMessages + maxWriteInterval_);
+      waitTime -= clock::nowInMsec();
 
       // wait until there's some work to do or we timeout
       {
         Synchronized s(hasWorkCond_);
 
         if (!hasWork_) {
-          hasWorkCond_.waitForTime(&absTimeout);
+          try {
+            hasWorkCond_.wait(waitTime);
+          } catch (TimedOutException&) {
+            // wake up to do some work
+          } catch (std::exception& e) {
+            LOG_OPER("[%s] ERROR: thrift::Monitor::wait() throws exception: %s",
+                     categoryHandled_.c_str(), e.what());
+          }
         }
         hasWork_ = false;
       }

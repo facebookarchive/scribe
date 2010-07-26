@@ -85,9 +85,8 @@ class ScribeHandler : virtual public  thrift::scribeIf,
   void incCounter(const string& counter);
   void incCounter(const string& counter, long amount);
 
-  inline void setServer(
-      shared_ptr<thrift::TNonblockingServer>& server) {
-    this->server_ = server;
+  inline void setServer(shared_ptr<thrift::TNonblockingServer>& server) {
+    server_ = server;
   }
 
   // Hop Latency is the latency between last hop receiving the message and this

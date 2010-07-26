@@ -64,7 +64,7 @@ class HdfsFile : public FileInterface,
     LOG_OPER("[hdfs] If you want HDFS Support, please recompile scribe with HDFS support");
   }
   static void init() {};
-  int  exists()   { return 0; }
+  bool exists()   { return false; }
   bool openRead() { return false; };           // open for reading file
   bool openWrite(){ return false; };           // open for appending to file
   bool openTruncate() { return false; }        // open for write and truncate
@@ -72,7 +72,6 @@ class HdfsFile : public FileInterface,
   void close()    {};
   bool write(const string& data) { return false; };
   void flush()    {};
-  void sync()     {};
   unsigned long fileSize() { return 0; };
   long readNext(string* item) { return false; };
   void deleteFile() {};

@@ -28,6 +28,8 @@
 #include "BufferStore.h"
 #include "ScribeServer.h"
 
+using namespace std;
+
 static const unsigned long kDefaultBufferStoreSendRate            = 1;
 static const time_t        kDefaultBufferStoreAvgRetryInterval    = 300;
 static const time_t        kDefaultBufferStoreRetryIntervalRange  = 60;

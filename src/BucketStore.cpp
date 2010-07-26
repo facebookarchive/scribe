@@ -28,6 +28,8 @@
 #include "BucketStore.h"
 #include "ScribeServer.h"
 
+using namespace std;
+
 static const char kDefaultBucketStoreDelimiter = ':';
 
 namespace scribe {

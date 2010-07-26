@@ -6,6 +6,8 @@ using namespace facebook;
 using namespace facebook::fb303;
 using namespace scribe::thrift;
 
+using namespace boost;
+
 namespace scribe {
 
 DynamicBucketUpdater* DynamicBucketUpdater::instance_ = NULL;

@@ -1,3 +1,8 @@
+Scribe
+
+Last Modified: 2010-Jun-18
+
+
 Introduction
 ============
 
@@ -35,6 +40,9 @@ scribe/
 
   aclocal/
     Contains scripts for building/linking with Boost
+
+  contrib/
+    Contains the Facebook Bassline project files
 
   examples/
     Contains simple examples of using Scribe
@@ -83,9 +91,19 @@ Helpful tips:
  repository.
 
 
+Resources
+=========
+
+More information about Scribe can be obtained on the Scribe webpage at:
+
+     http://developers.facebook.com/scribe
+
 
 To build
 ========
+
+Facebook Bassline is built separately from scribe. Before building scribe,
+please follow instructions in contrib/README to build FB303.
 
 ./bootstrap.sh <configure options>
 make
