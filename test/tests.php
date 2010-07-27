@@ -233,6 +233,8 @@ function stress_test($category, $client_name, $rate, $total, $msg_per_call,
 
   $scribe_client = create_scribe_client();
 
+  $msg_sent = 0;
+
   for($i = 0; $i < $total; ++$i) {
 
     $entry = new LogEntry;
@@ -251,6 +253,10 @@ function stress_test($category, $client_name, $rate, $total, $msg_per_call,
 
       $msgs_since_send = 0;
       $ret = scribe_Log_test($messages, $scribe_client);
+      if ($ret == ResultCode::OK) {
+        $msg_sent += count($messages);
+      }
+
       $messages = array();
 
       $now = microtime(true);
@@ -261,6 +267,8 @@ function stress_test($category, $client_name, $rate, $total, $msg_per_call,
       }
     }
   }
+
+  return $msg_sent;
 }
 
 function many_connections_test($category, $client_name, $num_connections, $rate,
@@ -496,4 +504,3 @@ function super_stress_test($categories, $client_name, $rate, $total,
   }
 }
 
-?>

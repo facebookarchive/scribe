@@ -31,7 +31,8 @@
 
 using namespace scribe::thrift;
 
-static const std::string kMetaLogfilePrefix = "scribe_meta<new_logfile>: ";
+static const std::string kMetaLogfilePrefix    = "scribe_meta<new_logfile>: ";
+static const uint32_t    kMinConvertBufferSize = 16000;
 
 namespace scribe {
 
@@ -131,7 +132,7 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* currentTime) {
     if (!writeFile_) {
       LOG_OPER("[%s] Failed to create file <%s> of type <%s> for writing",
                categoryHandled_.c_str(), file.c_str(), fsType_.c_str());
-      setStatus("file open error");
+      g_handler->incCounter(categoryHandled_, "err_file_open_1");
       return false;
     }
 
@@ -145,7 +146,7 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* currentTime) {
     if (!success) {
       LOG_OPER("[%s] Failed to create directory for file <%s>",
                categoryHandled_.c_str(), file.c_str());
-      setStatus("File open error");
+      g_handler->incCounter(categoryHandled_, "err_file_open_2");
       return false;
     }
 
@@ -156,7 +157,7 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* currentTime) {
       LOG_OPER("[%s] Failed to open file <%s> for writing",
               categoryHandled_.c_str(),
               file.c_str());
-      setStatus("File open error");
+      g_handler->incCounter(categoryHandled_, "err_file_open_3");
     } else {
 
       /* just make a best effort here, and don't error if it fails */
@@ -176,14 +177,13 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* currentTime) {
       currentSize_ = writeFile_->fileSize();
       currentFilename_ = file;
       eventsWritten_ = 0;
-      setStatus("");
     }
 
   } catch(const std::exception& e) {
     LOG_OPER("[%s] Failed to create/open file of type <%s> for writing",
              categoryHandled_.c_str(), fsType_.c_str());
     LOG_OPER("Exception: %s", e.what());
-    setStatus("file create/open error");
+    g_handler->incCounter(categoryHandled_, "err_file_create_open");
 
     return false;
   }
@@ -292,6 +292,8 @@ bool FileStore::writeMessages(LogEntryVectorPtr messages,
 
   // reserve a reasonable size of the write buffer
   writeBuf.reserve(maxWriteSize + 1024);
+  // reset and reserve some space for convertBuffer_
+  convertBuffer_->resetBuffer(kMinConvertBufferSize);
 
   try {
     for (LogEntryVector::iterator iter = messages->begin();
@@ -299,12 +301,12 @@ bool FileStore::writeMessages(LogEntryVectorPtr messages,
          ++ iter) {
 
       if (isBufferFile_) {
+        convertBuffer_->resetBuffer(); // reset the r/w pointers
         (*iter)->write(protocol.get());
         unsigned long messageLen = convertBuffer_->available_read();
 
         writeBuf += writeFile->getFrame(messageLen);
         writeBuf += convertBuffer_->getBufferAsString();
-        convertBuffer_->resetBuffer();
 
       } else {
         // have to be careful with the length here. getFrame wants the length
@@ -367,9 +369,12 @@ bool FileStore::writeMessages(LogEntryVectorPtr messages,
       if (writeBuf.size() > maxWriteSize ||
           messages->end() == iter + 1 ) {
         if (!writeFile->write(writeBuf)) {
-          LOG_OPER("[%s] File store failed to write (%lu) messages to file",
-                   categoryHandled_.c_str(), messages->size());
-          setStatus("File write error");
+          LOG_OPER(
+            "[%s] File store failed to write (%lu) messages (%lu bytes) to file",
+            categoryHandled_.c_str(),
+            messages->size(),
+            writeBuf.size());
+          g_handler->incCounter(categoryHandled_, "err_file_write");
           g_handler->stats.addCounter(StatCounters::kFileWriteErr, 1);
           success = false;
           break;
@@ -401,7 +406,13 @@ bool FileStore::writeMessages(LogEntryVectorPtr messages,
   eventsWritten_ += numWritten;
 
   if (!success) {
-    close();
+    if (isBufferFile_ && currentSize_ > 0 && !rotateOnReopen_) {
+      // force a rotation so that corrupted bytes are bounded at the end of
+      // the file
+      rotateFile();
+    } else {
+      close();
+    }
 
     // update messages to include only the messages that were not handled
     if (numWritten > 0) {
@@ -500,6 +511,8 @@ bool FileStore::readOldest(/*out*/ LogEntryVectorPtr messages,
     protocol = TBinaryProtocolFactory().getProtocol(convertBuffer_);
   }
 
+  lostBytes_ = 0;
+
   uint32_t bsize = 0;
   string message;
   while ((loss = inFile->readNext(&message)) > 0) {
@@ -507,9 +520,23 @@ bool FileStore::readOldest(/*out*/ LogEntryVectorPtr messages,
       LogEntryPtr entry(new LogEntry);
 
       if (isThriftEncoded) {
-        convertBuffer_->write(reinterpret_cast<const uint8_t*>(message.data()),
-                             message.length());
-        entry->read(protocol.get());
+        try {
+          convertBuffer_->resetBuffer((uint8_t*)message.data(),
+                                      message.length());
+          entry->read(protocol.get());
+        } catch (const TTransportException& te) {
+          // Corruption detected. Usually this message contains part of the
+          // original message and part of the next message. We simply drop
+          // this message.
+          LOG_OPER("[%s] Corrupted message detected. Lost %ld bytes.",
+                   categoryHandled_.c_str(), message.length());
+          lostBytes_ += message.length();
+          continue; // keep trying and hope we can get back onto the road
+                    // after some retries. For each subsequent readNext(),
+                    // it may fail with number of lost bytes returned, or
+                    // may fail in thrift deserialization, or eventually
+                    // we reach the beginning of a good frame.
+        }
 
       } else {
         // check whether a category is stored with the message
@@ -535,12 +562,15 @@ bool FileStore::readOldest(/*out*/ LogEntryVectorPtr messages,
     }
   }
 
+  // accumulate all the numbers of lost bytes
   if (loss < 0) {
-    lostBytes_ = -loss;
-    g_handler->stats.addCounter(StatCounters::kFileLostBytes, lostBytes_);
-  } else {
-    lostBytes_ = 0;
+    lostBytes_ += -loss;
   }
+
+  if (lostBytes_ > 0) {
+    g_handler->stats.addCounter(StatCounters::kFileLostBytes, lostBytes_);
+  }
+
   inFile->close();
 
   LOG_OPER("[%s] read <%lu> entries of <%d> bytes from file <%s>",

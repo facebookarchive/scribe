@@ -45,6 +45,7 @@ $ALL_TESTS = array(
 //  'categoriestest',
   'paramtest',
   'twodefaulttest',
+  'diskfulltest',
   //'reloadtest',
   //'latencytest',
 );

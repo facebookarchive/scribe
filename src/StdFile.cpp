@@ -33,7 +33,11 @@ using namespace std;
 namespace scribe {
 
 StdFile::StdFile(const string& name, bool frame)
-  : FileInterface(name, frame), inputBuffer_(NULL), bufferSize_(0) {
+    : FileInterface(name, frame),
+      inputBuffer_(NULL),
+      bufferSize_(0),
+      fileSize_(-1),
+      bytesRead_(0) {
 }
 
 StdFile::~StdFile() {
@@ -48,6 +52,7 @@ bool StdFile::exists() {
 }
 
 bool StdFile::openRead() {
+  fileSize();
   return open(fstream::in);
 }
 
@@ -70,6 +75,7 @@ bool StdFile::open(ios_base::openmode mode) {
   }
 
   file_.open(filename_.c_str(), mode);
+  bytesRead_ = 0;
 
   return file_.good();
 }
@@ -141,7 +147,7 @@ StdFile::readNext(string* item) {
   if (offset != -1) {                       \
     size = -(fileSize() - offset);          \
   } else {                                  \
-    size = -fileSize();                     \
+    size = -(fileSize() - bytesRead_);      \
   }                                         \
   if (size > 0) {                           \
     /* loss size can't be positive          \
@@ -158,7 +164,7 @@ StdFile::readNext(string* item) {
     inputBuffer_ = (char *) malloc(bufferSize_);
     if (inputBuffer_ == NULL) {
       CALC_LOSS();
-      LOG_OPER("WARNING: nomem Data Loss loss %ld bytes in %s", size,
+      LOG_OPER("WARNING: nomem Data Loss loss %ld bytes in %s", -size,
           filename_.c_str());
      return (size);
     }
@@ -169,11 +175,13 @@ StdFile::readNext(string* item) {
     /* end of file */
     return (0);
   }
+  bytesRead_ += UINT_SIZE;
+
   // check if most signiifcant bit set - should never be set
-  if (size >= INT_MAX) {
+  if (size >= std::min((long)INT_MAX, fileSize_)) {
     /* Definitely corrupted. Stop reading any further */
     CALC_LOSS();
-    LOG_OPER("WARNING: Corruption Data Loss %ld bytes in %s", size,
+    LOG_OPER("WARNING: Corruption Data Loss %ld bytes in %s", -size,
         filename_.c_str());
     return (size);
   }
@@ -189,16 +197,17 @@ StdFile::readNext(string* item) {
   }
   if (inputBuffer_ == NULL) {
     CALC_LOSS();
-    LOG_OPER("WARNING: nomem Corruption? Data Loss %ld bytes in %s", size,
+    LOG_OPER("WARNING: nomem Corruption? Data Loss %ld bytes in %s", -size,
         filename_.c_str());
     return (size);
   }
   file_.read(inputBuffer_, size);
   if (file_.good()) {
     item->assign(inputBuffer_, size);
+    bytesRead_ += size;
   } else {
     CALC_LOSS();
-    LOG_OPER("WARNING: Data Loss %ld bytes in %s", size, filename_.c_str());
+    LOG_OPER("WARNING: Data Loss %ld bytes in %s", -size, filename_.c_str());
   }
   if (bufferSize_ > kLargeBufferSize) {
     free(inputBuffer_);
@@ -209,15 +218,15 @@ StdFile::readNext(string* item) {
 }
 
 unsigned long StdFile::fileSize() {
-  unsigned long size = 0;
   try {
-    size = filesystem::file_size(filename_.c_str());
+    if (fileSize_ < 0) {
+      fileSize_ = filesystem::file_size(filename_.c_str());
+    }
   } catch(const std::exception& e) {
     LOG_OPER("Failed to get size for file <%s> error <%s>",
              filename_.c_str(), e.what());
-    size = 0;
   }
-  return size;
+  return fileSize_;
 }
 
 void StdFile::listImpl(const string& path, vector<string>* files) {
@@ -244,7 +253,7 @@ bool StdFile::createDirectory(const string& path) {
     filesystem::create_directories(path);
   } catch(const std::exception& e) {
     LOG_OPER("Exception < %s > in StdFile::createDirectory for path %s ",
-      e.what(),path.c_str());
+             e.what(),path.c_str());
     return false;
   }
 

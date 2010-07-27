@@ -55,6 +55,8 @@ class StdFile : public FileInterface,
   char* inputBuffer_;
   unsigned bufferSize_;
   std::fstream file_;
+  long fileSize_;
+  long bytesRead_;
 
   // disallow empty construction
   StdFile();

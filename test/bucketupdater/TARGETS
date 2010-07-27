@@ -1,9 +1,0 @@
-cpp_binary (
-  name = 'bidupdater',
-  srcs = [
-          'main.cpp',
-         ],
-  deps = [
-          '@/scribe/if:bucket',
-         ],
-)

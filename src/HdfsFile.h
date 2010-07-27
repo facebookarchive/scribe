@@ -76,7 +76,7 @@ class HdfsFile : public FileInterface,
   long readNext(string* item) { return false; };
   void deleteFile() {};
   void listImpl(const string& path, vector<string>* files) {};
-  string getFrame(unsigned dataSize) { return 0; };
+  string getFrame(unsigned dataSize) { return string(); };
   bool createDirectory(const string& path) { return false; };
   bool createSymlink(const string& newPath, const string& oldPath) {
     return false;

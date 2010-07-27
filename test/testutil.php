@@ -189,6 +189,53 @@ function resultChecker($path, $fileprefix, $clientname) {
   return $results;
 }
 
+function uniqueFiles($path, $fileprefix) {
+  try {
+
+    // For each file that matches the prefix, call resultFileChecker
+    // to count the matching lines
+    $files = array();
+    if ($dir = opendir($path)) {
+      while (false !== ($file = readdir($dir))) {
+        if (0 === strncmp($file, $fileprefix, strlen($fileprefix))) {
+          $files[] = $file;
+        }
+      }
+      sort($files);
+      foreach ($files as $file) {
+          $filename = "$path/$file";
+          uniqueFile($filename);
+      }
+    } else {
+      print("ERROR: could not open directory: $path \n");
+    }
+
+  } catch(Exception $e) {
+    print("EXCEPTION: " . $e->getMessage() . "\n");
+  }
+
+  if ($dir) {
+    closedir($dir);
+  }
+}
+
+function uniqueFile($filename) {
+  $lines = array();
+
+  $file = fopen($filename, 'r');
+  while ($line = fgets($file)) {
+    $lines []= $line;
+  }
+  $lines = array_unique($lines);
+  fclose($file);
+
+  $file = fopen($filename, 'w');
+  foreach ($lines as $line) {
+    fwrite($file, $line . "\n");
+  }
+  fclose($file);
+}
+
 function resultFileChecker($filename, $clientname, &$last_entry) {
   $results = array();
   $results["count"] = 0;
