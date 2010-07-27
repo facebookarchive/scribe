@@ -135,9 +135,10 @@ void ConnPool::closeCommon(const string &key) {
 
     conn->releaseRef();
     if (conn->getRef() <= 0) {
-      conn->lock();
-      conn->close();
-      conn->unlock();
+      {
+        Guard g1(conn->mutex_);
+        conn->close();
+      }
       connMap_.erase(iter);
     }
   } else {
@@ -156,17 +157,18 @@ SendResult ConnPool::sendCommon(const string &key,
   mapMutex_.lock();
   ConnectionMap::iterator iter = connMap_.find(key);
   if (iter != connMap_.end()) {
-    iter->second->lock();
-    mapMutex_.unlock();
-    SendResult result = iter->second->send(messages, bytesSent);
-    if (sendHost) {
-      *sendHost = iter->second->getRemoteHost();
+    {
+      Guard g(iter->second->mutex_);
+      mapMutex_.unlock();
+      SendResult result = iter->second->send(messages, bytesSent);
+      if (sendHost) {
+        *sendHost = iter->second->getRemoteHost();
+      }
+      if (sendPort) {
+        *sendPort = iter->second->getRemotePort();
+      }
+      return result;
     }
-    if (sendPort) {
-      *sendPort = iter->second->getRemotePort();
-    }
-    iter->second->unlock();
-    return result;
   } else {
     mapMutex_.unlock();
     LOG_OPER("send failed. No connection pool entry for <%s>", key.c_str());
@@ -208,14 +210,6 @@ unsigned ScribeConn::getRef() {
 
 void ScribeConn::setRef(unsigned r) {
   refCount_ = r;
-}
-
-void ScribeConn::lock() {
-  mutex_.lock();
-}
-
-void ScribeConn::unlock() {
-  mutex_.unlock();
 }
 
 bool ScribeConn::isOpen() {
@@ -284,9 +278,9 @@ bool ScribeConn::open() {
 void ScribeConn::close() {
   try {
     framedTransport_->close();
-  } catch (const TTransportException& ttx) {
+  } catch (const std::exception& e) {
     LOG_OPER("error <%s> while closing connection to remote scribe server %s",
-             ttx.what(), connectionString().c_str());
+             e.what(), connectionString().c_str());
   }
 }
 

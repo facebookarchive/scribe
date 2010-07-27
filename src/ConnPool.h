@@ -47,9 +47,6 @@ class ScribeConn {
   unsigned getRef();
   void setRef(unsigned);
 
-  void lock();
-  void unlock();
-
   bool isOpen();
   bool open();
   void close();
@@ -61,6 +58,7 @@ class ScribeConn {
   inline unsigned long getRemotePort() const {
     return remotePort_;
   }
+  Mutex mutex_;
 
  private:
   string connectionString();
@@ -79,7 +77,6 @@ class ScribeConn {
   string remoteHost_;
   unsigned long remotePort_;
   int timeout_; // connection, send, and recv timeout
-  Mutex mutex_;
 };
 
 typedef shared_ptr<ScribeConn>     ScribeConnPtr;
@@ -124,6 +121,7 @@ class ConnPool : private boost::noncopyable {
  protected:
   string makeKey(const string& name, unsigned long port);
 
+// Mutex to protect ConnectionMap access
   Mutex         mapMutex_;
   ConnectionMap connMap_;
 };

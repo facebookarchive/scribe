@@ -146,39 +146,38 @@ bool DynamicBucketUpdater::getHostByRemoteHostPort(
   unsigned long now = scribe::clock::nowInMsec() / 1000;
   bool ret = true;
   bool needCheck = false;
+  {
+    Guard g(instance->lock_);
+    // periodic check whether we need to fetch the mapping, or need to
+    // update
+    CatBidToHostMap::const_iterator iter = instance->catMap_.find(category);
+    if (iter == instance->catMap_.end() ||
+        iter->second.lastUpdated + ttl < now) {
+      needCheck = true;
+    }
 
-  instance->lock_.lock();
-  // periodic check whether we need to fetch the mapping, or need to
-  // update
-  CatBidToHostMap::const_iterator iter = instance->catMap_.find(category);
-  if (iter == instance->catMap_.end() ||
-      iter->second.lastUpdated + ttl < now) {
-    needCheck = true;
-  }
+    if (needCheck) {
+      instance->periodicCheck(category,
+          ttl,
+          updateHost,
+          updatePort,
+          connTimeout, sendTimeout, recvTimeout);
+      iter = instance->catMap_.find(category);
+      // check again.
+      if (iter == instance->catMap_.end()) {
+        ret = false;
+      }
+    }
 
-  if (needCheck) {
-    instance->periodicCheck(category,
-                            ttl,
-                            updateHost,
-                            updatePort,
-                            connTimeout, sendTimeout, recvTimeout);
-    iter = instance->catMap_.find(category);
-    // check again.
-    if (iter == instance->catMap_.end()) {
-      ret = false;
+    if (ret) {
+      const CategoryEntry &catEntry = iter->second;
+      ret = instance->getHostCommon(bid, catEntry, host, port);
+    } else {
+      LOG_OPER("[%s] Error: Missing mapping for bid %lu, update host %s:%u",
+          category.c_str(), bid, updateHost.c_str(),  updatePort);
+      instance->addStatValue(DynamicBucketUpdater::kFb303ErrNoMapping, 1);
     }
   }
-
-  if (ret) {
-    const CategoryEntry &catEntry = iter->second;
-    ret = instance->getHostCommon(bid, catEntry, host, port);
-  } else {
-    LOG_OPER("[%s] Error: Missing mapping for bid %lu, update host %s:%u",
-             category.c_str(), bid, updateHost.c_str(),  updatePort);
-    instance->addStatValue(DynamicBucketUpdater::kFb303ErrNoMapping, 1);
-  }
-  instance->lock_.unlock();
-
   return ret;
 }
 
@@ -215,17 +214,17 @@ bool DynamicBucketUpdater::getHostByService(
   unsigned long now = scribe::clock::nowInMsec() / 1000;
   bool ret = true;
   bool needCheck = false;
-
-  instance->lock_.lock();
-  // periodic check whether we need to fetch the mapping, or need to
-  // update
-  CatBidToHostMap::const_iterator iter = instance->catMap_.find(category);
-  if (iter == instance->catMap_.end() ||
-      iter->second.lastUpdated + ttl < now) {
-    needCheck = true;
+  CatBidToHostMap::const_iterator iter;
+  {
+    Guard g(instance->lock_);
+    // periodic check whether we need to fetch the mapping, or need to
+    // update
+    iter = instance->catMap_.find(category);
+    if (iter == instance->catMap_.end() ||
+        iter->second.lastUpdated + ttl < now) {
+      needCheck = true;
+    }
   }
-  instance->lock_.unlock();
-
   if (needCheck) {
     // update through service
     ServerVector servers;
@@ -245,26 +244,28 @@ bool DynamicBucketUpdater::getHostByService(
       int which = rand() % servers.size();
       string updateHost = servers[which].first;
       uint32_t updatePort = servers[which].second;
-      instance->lock_.lock();
-      instance->periodicCheck(category,
-                              ttl,
-                              updateHost,
-                              updatePort,
-                              connTimeout, sendTimeout, recvTimeout);
-      // check again.
-      iter = instance->catMap_.find(category);
-      if (iter == instance->catMap_.end()) {
-        ret = false;
+      {
+        Guard g(instance->lock_);
+        instance->periodicCheck(category,
+            ttl,
+            updateHost,
+            updatePort,
+            connTimeout, sendTimeout, recvTimeout);
+        // check again.
+        iter = instance->catMap_.find(category);
+        if (iter == instance->catMap_.end()) {
+          ret = false;
+        }
       }
-      instance->lock_.unlock();
     }
   }
 
   if (ret) {
     const CategoryEntry &catEntry = iter->second;
-    instance->lock_.lock();
-    ret =  instance->getHostCommon(bid, catEntry, host, port);
-    instance->lock_.unlock();
+    {
+      Guard g(instance->lock_);
+      ret =  instance->getHostCommon(bid, catEntry, host, port);
+    }
   } else {
     LOG_OPER("[%s] Error: Missing mapping for bid %lu of service %s",
              category.c_str(), bid, serviceName.c_str());

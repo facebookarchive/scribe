@@ -191,18 +191,20 @@ fb_status ScribeHandler::getStatus() {
 
 void ScribeHandler::setStatus(fb_status newStatus) {
   LOG_OPER("STATUS: %s", statusAsString(newStatus));
-  statusLock_.lock();
-  status_ = newStatus;
-  statusLock_.unlock();
+  {
+    Guard g(statusLock_);
+    status_ = newStatus;
+  }
 }
 
 // Returns the handler status details if non-empty,
 // otherwise the first non-empty store status found
 void ScribeHandler::getStatusDetails(string& retVal) {
 
-  statusLock_.lock();
-  retVal = statusDetails_;
-  statusLock_.unlock();
+  {
+    Guard g(statusLock_);
+    retVal = statusDetails_;
+  }
   if (retVal.empty()) {
     RWGuard rGuard(*scribeHandlerLock_);
 
@@ -224,9 +226,10 @@ void ScribeHandler::getStatusDetails(string& retVal) {
 
 void ScribeHandler::setStatusDetails(const string& newStatusDetails) {
   LOG_OPER("STATUS: %s", newStatusDetails.c_str());
-  statusLock_.lock();
-  statusDetails_ = newStatusDetails;
-  statusLock_.unlock();
+  {
+    Guard g(statusLock_);
+    statusDetails_ = newStatusDetails;
+  }
 }
 
 const char* ScribeHandler::statusAsString(fb_status status) {
