@@ -613,8 +613,6 @@ void ScribeHandler::initialize() {
 
   setStatusDetails("configuring");
 
-  bool perfectConfig = true;
-  bool enoughConfigToRun = true;
   int numStores = 0;
 
   // Get the config data and parse it.
@@ -692,36 +690,15 @@ void ScribeHandler::initialize() {
     bool success = configureStore(storeConf, &numStores);
 
     if (!success) {
-      perfectConfig = false;
+      // If config is not perfect exit
+      throw std::runtime_error("invalid config");
     }
   }
 
-  if (numStores) {
-    LOG_OPER("configured <%d> stores", numStores);
-  } else {
-    setStatusDetails("No stores configured successfully");
-    perfectConfig = false;
-    enoughConfigToRun = false;
-  }
+  LOG_OPER("configured <%d> stores", numStores);
 
-  if (!enoughConfigToRun) {
-    // If the new configuration failed we'll run with
-    // nothing configured and status set to WARNING
-    deleteCategoryMap(categories_);
-    deleteCategoryMap(categoryPrefixes_);
-  }
-
-  /*
-   * Set the status to something other than STOPPING to let other
-   * threads in
-   */
-  if (!perfectConfig || !enoughConfigToRun) {
-    // perfect should be a subset of enough, but just in case
-    setStatus(WARNING); // status details should have been set above
-  } else {
-    setStatusDetails("");
-    setStatus(ALIVE);
-  }
+  setStatusDetails("");
+  setStatus(ALIVE);
 }
 
 
@@ -765,7 +742,7 @@ bool ScribeHandler::configureStore(StoreConfPtr storeConf, int *numStores) {
     StoreQueuePtr result =
       configureStoreCategory(storeConf, categoryList[0], model);
 
-    if (result == NULL) {
+    if (!result || !result.use_count()) {
       return false;
     }
 
@@ -785,7 +762,7 @@ bool ScribeHandler::configureStore(StoreConfPtr storeConf, int *numStores) {
     // create model so that we can create stores as copies of this model
     model = configureStoreCategory(storeConf, categories, model, true);
 
-    if (model == NULL) {
+    if (!model || !model.use_count()) {
       string errorMesg("Bad config - could not create store for category: ");
       errorMesg += categories;
       setStatusDetails(errorMesg);
@@ -798,7 +775,7 @@ bool ScribeHandler::configureStore(StoreConfPtr storeConf, int *numStores) {
        StoreQueuePtr result =
          configureStoreCategory(storeConf, *iter, model);
 
-      if (!result) {
+      if (!result || !result.use_count()) {
         return false;
       }
 
