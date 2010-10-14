@@ -1,4 +1,4 @@
-#!/usr/local/bin/thrift --cpp --php
+#!/usr/local/bin/thrift --gen cpp:pure_enums --gen php
 
 ##  Copyright (c) 2009- Facebook
 ##

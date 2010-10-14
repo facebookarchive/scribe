@@ -1,6 +1,6 @@
 Scribe
 
-Last Modified: 2010-Jun-18
+Last Modified: 2010-Oct-14
 
 
 Introduction
@@ -65,8 +65,8 @@ Requirements
 
 [libevent] Event Notification library
 [boost] Boost C++ library (version 1.36 or later)
-[thrift] Thrift framework
-[fb303] Facebook Bassline (included in thrift/contrib/fb303/)
+[thrift] Thrift framework (version 0.5.0 or later)
+[fb303] Facebook Bassline (included in contrib/fb303/)
    fb303 r697294 or later is required.
 [hadoop] optional. version 0.19.1 or higher (http://hadoop.apache.org)
 
@@ -82,14 +82,6 @@ Helpful tips:
  scribe or fb303, try setting the environment variable PYTHONPATH to the
  location of the installed packages.  This path gets output during
  'make install'. (Eg: PYTHONPATH='/usr/lib/python2.5/site-packages').
--The current version of scribe_cat does not work with the stable version of
- thrift, as of 5th March 2010. To get it to work change
- log_entry = scribe.LogEntry(category=category, message=sys.stdin.read())
- to
- log_entry = scribe.LogEntry(dict(category=category, message=sys.stdin.read()))
- The current scribe_cat works with latest thrift code if you clone their dev
- repository.
-
 
 Resources
 =========

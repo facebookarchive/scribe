@@ -33,6 +33,8 @@ all:
 # hadoop_home
 #
 THRIFT = $(thrift_home)/bin/thrift
+THRIFT_INCLUDES = -I $(fb303_home)/share/
+THRIFT_OPTS = $(THRIFT_INCLUDES) --gen cpp:pure_enums --gen py --gen php --gen java
 THRIFT_CPPFLAGS = -I$(thrift_home)/include -I$(thrift_home)/include/thrift
 
 # User defined conditionals and conditonal statements set up in configure.ac.
@@ -51,7 +53,7 @@ endif
 
 
 # Set libraries external to this component.
-EXTERNAL_LIBS = -L$(thrift_home)/lib -L$(fb303_home)/cpp -L$(hadoop_home)/lib -lfb303 -lthrift -lthriftnb
+EXTERNAL_LIBS = -L$(thrift_home)/lib -L$(fb303_home)/lib -L$(hadoop_home)/lib -lfb303 -lthrift -lthriftnb
 EXTERNAL_LIBS += -levent -lpthread
 if USE_SCRIBE_HDFS
   EXTERNAL_LIBS += -lhdfs -ljvm
@@ -63,7 +65,7 @@ endif
 # USE flags AM_CXXFLAGS, AM_CFLAGS, AM_CPPFLAGS, AM_LDFLAGS, LDADD in this section.
 
 AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/contrib
-AM_CPPFLAGS += -I$(fb303_home)/cpp/gen-cpp
+AM_CPPFLAGS += -I$(fb303_home)/include/thrift/fb303
 AM_CPPFLAGS += -I$(hadoop_home)/include
 AM_CPPFLAGS += $(BOOST_CPPFLAGS)
 AM_CPPFLAGS += $(THRIFT_CPPFLAGS)
@@ -114,8 +116,8 @@ endif
 # Set up Thrift specific activity here.
 # We assume that a <name>+types.cpp will always be built from <name>.thrift.
 
-$(eval $(call thrift_template,.,$(srcdir)/../if/scribe.thrift, -I $(fb303_home)/if/ --gen cpp --gen py --gen php --gen java))
-$(eval $(call thrift_template,.,$(srcdir)/../if/bucketupdater.thrift, -I $(fb303_home)/if/ --gen cpp --gen py --gen php --gen java))
+$(eval $(call thrift_template,.,$(srcdir)/../if/scribe.thrift,$(THRIFT_OPTS)))
+$(eval $(call thrift_template,.,$(srcdir)/../if/bucketupdater.thrift,$(THRIFT_OPTS)))
 
 if FACEBOOK
   $(eval $(call thrift_template,.,$(smc_home)/if/ServiceManager.thrift,--gen cpp))
