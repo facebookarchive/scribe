@@ -129,21 +129,26 @@ class FileStoreBase : public Store {
 
   // appends information about the current file to a log file in the same
   // directory
-  virtual void printStats();
+  virtual void printStats(struct tm* creation_time);
 
   // Returns the number of bytes to pad to align to the specified block size
   unsigned long bytesToPad(unsigned long next_message_length,
                            unsigned long current_file_size,
                            unsigned long chunk_size);
 
+  std::string makeFilePath(struct tm* creation_time);
+
   // A full filename includes an absolute path and a sequence number suffix.
   std::string makeBaseFilename(struct tm* creation_time);
   std::string makeFullFilename(int suffix, struct tm* creation_time,
                                bool use_full_path = true);
+
+  std::string substituteFilenameString(std::string &orig_filename, struct tm* creation_time);
+
   std::string makeBaseSymlink();
-  std::string makeFullSymlink();
-  int  findOldestFile(const std::string& base_filename);
-  int  findNewestFile(const std::string& base_filename);
+  std::string makeFullSymlink(struct tm* creation_time);
+  int  findOldestFile(struct tm* creation_time);
+  int  findNewestFile(struct tm* creation_time);
   int  getFileSuffix(const std::string& filename,
                      const std::string& base_filename);
   void setHostNameSubDir();
@@ -151,7 +156,6 @@ class FileStoreBase : public Store {
   // Configuration
   std::string baseFilePath;
   std::string subDirectory;
-  std::string filePath;
   std::string baseFileName;
   std::string baseSymlinkName;
   unsigned long maxSize;
@@ -249,7 +253,7 @@ class ThriftFileStore : public FileStoreBase {
   void configure(pStoreConf configuration, pStoreConf parent);
   void close();
   void flush();
-  bool createFileDirectory();
+  bool createFileDirectory(struct tm* current_time);
 
  protected:
   // Implement FileStoreBase virtual function
