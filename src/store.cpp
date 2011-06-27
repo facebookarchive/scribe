@@ -650,7 +650,12 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
 
     // this is the case where there's no file there and we're not incrementing
     if (suffix < 0) {
-      suffix = 0;
+      if (rollPeriod == ROLL_HOURLY) {
+        suffix = current_time->tm_hour;
+      }
+      else {
+        suffix = 0;
+      }
     }
 
     string file = makeFullFilename(suffix, current_time);
