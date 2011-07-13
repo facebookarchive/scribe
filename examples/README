@@ -41,6 +41,8 @@ src/scribed examples/example1.conf
 #From another terminal, use scribe_cat to send a message to scribe:
 echo "hello world" | examples/scribe_cat test
 
+#Note that extra newline after "hello world" from example1.conf's add_newlines
+
 #If the previous command failed, make sure you did a 'make install' from the
 #root scribe directory and that $PYTHONPATH is set correctly (see README)
 
