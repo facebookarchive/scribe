@@ -310,7 +310,6 @@ ostream& StoreConf::print(ostream& os, uint32_t depth,
   // are weakly ordered, so we will get consistent output.
   for (string_map_t::const_iterator iter = values.begin();
         iter != values.end(); iter++) {
-    int len = useSpace ? depth * tabw : depth;
     os << indent(depth, useSpace, tabw) << iter->first
        << "=" << iter->second << endl;
   }

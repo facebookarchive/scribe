@@ -1743,15 +1743,15 @@ NetworkStore::NetworkStore(StoreQueue* storeq,
     serviceBased(false),
     remotePort(0),
     serviceCacheTimeout(DEFAULT_NETWORKSTORE_CACHE_TIMEOUT),
+    lastServiceCheck(0),
     ignoreNetworkError(false),
     configmod(NULL),
-    opened(false),
-    lastServiceCheck(0) {
   // we can't open the connection until we get configured
 
   // the bool for opened ensures that we don't make duplicate
   // close calls, which would screw up the connection pool's
   // reference counting.
+    opened(false) {
 }
 
 NetworkStore::~NetworkStore() {
