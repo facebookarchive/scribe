@@ -24,9 +24,11 @@
 
 #include "common.h"
 
+class SSLOptions;
+
 class scribeConn {
  public:
-  scribeConn(const std::string& host, unsigned long port, int timeout);
+  scribeConn(const std::string& host, unsigned long port, int timeout, boost::shared_ptr<SSLOptions> sslOptions);
   scribeConn(const std::string &service, const server_vector_t &servers, int timeout);
   virtual ~scribeConn();
 
@@ -54,6 +56,8 @@ class scribeConn {
   unsigned refCount;
 
   bool smcBased;
+  boost::shared_ptr<SSLOptions> sslOptions;
+  boost::shared_ptr<apache::thrift::transport::TSSLSocketFactory> sslSocketFactory;
   std::string smcService;
   server_vector_t serverList;
   std::string remoteHost;
@@ -75,7 +79,7 @@ class ConnPool {
   ConnPool();
   virtual ~ConnPool();
 
-  bool open(const std::string& host, unsigned long port, int timeout);
+  bool open(const std::string& host, unsigned long port, int timeout, boost::shared_ptr<SSLOptions> sslOptions);
   bool open(const std::string &service, const server_vector_t &servers, int timeout);
 
   void close(const std::string& host, unsigned long port);

@@ -47,6 +47,7 @@ void print_usage(const char* program_name) {
   cout << "Usage: " << program_name << " [-p port] [-c config_file]" << endl;
 }
 
+
 int main(int argc, char **argv) {
 
   try {
@@ -90,6 +91,9 @@ int main(int argc, char **argv) {
     // seed random number generation with something reasonably unique
     srand(time(NULL) ^ getpid());
 
+    // don't terminate if a pipe breaks
+    signal(SIGPIPE, SIG_IGN);
+
     g_Handler = shared_ptr<scribeHandler>(new scribeHandler(port, config_file));
     g_Handler->initialize();
 
@@ -109,13 +113,30 @@ int main(int argc, char **argv) {
       thread_manager->start();
     }
 
-    TNonblockingServer server(processor, binaryProtocolFactory,
-                              g_Handler->port, thread_manager);
+    shared_ptr<TServerSocket> serverSocket;
+    if (g_Handler->sslOptions->sslIsEnabled()) {
+      boost::shared_ptr<TSSLSocketFactory> sslFactory(g_Handler->sslOptions->createFactory());
+      serverSocket.reset(new TSSLServerSocket(g_Handler->port, sslFactory));
+    } else {
+      // serverSocket is not used since it is hardcoded into TNonblockingServer
+    }
 
-    LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
+    shared_ptr<TTransportFactory> framedTransportFactory(new TFramedTransportFactory());
+
+    boost::shared_ptr<TServer> server;
+    if (g_Handler->sslOptions->sslIsEnabled()) {
+      server.reset(
+        new TThreadedServer(processor, serverSocket, framedTransportFactory, binaryProtocolFactory)
+      );
+    } else {
+      server.reset(
+        new TNonblockingServer(processor, binaryProtocolFactory, g_Handler->port, thread_manager)
+      );
+    }
+
+    LOG_OPER("Starting scribe server on port %lu using %s", g_Handler->port, g_Handler->sslOptions->sslIsEnabled() ? "SSL" : "normal sockets");
     fflush(stderr);
-
-    server.serve();
+    server->serve();
 
   } catch(std::exception const& e) {
     LOG_OPER("Exception in main: %s", e.what());
@@ -129,6 +150,7 @@ scribeHandler::scribeHandler(unsigned long int server_port, const std::string& c
   : FacebookBase("Scribe"),
     port(server_port),
     numThriftServerThreads(DEFAULT_SERVER_THREADS),
+    sslOptions(new SSLOptions),
     checkPeriod(DEFAULT_CHECK_PERIOD),
     pcategories(NULL),
     pcategory_prefixes(NULL),
@@ -594,6 +616,9 @@ void scribeHandler::initialize() {
         throw runtime_error("invalid value for num_thrift_server_threads");
       }
     }
+
+    // Setup SSL options
+    sslOptions->configure(config);
 
     // Build a new map of stores, and move stores from the old map as
     // we find them in the config file. Any stores left in the old map

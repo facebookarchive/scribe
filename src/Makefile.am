@@ -108,10 +108,10 @@ endif
 # Set up Thrift specific activity here.
 # We assume that a <name>+types.cpp will always be built from <name>.thrift.
 
-$(eval $(call thrift_template,.,$(srcdir)/../if/scribe.thrift, -I $(fb303_home)/share/ --cpp --py --php))
+$(eval $(call thrift_template,.,$(srcdir)/../if/scribe.thrift, -I $(fb303_home)/share/ --gen cpp:pure_enums --py --php))
 
 if FACEBOOK
-  $(eval $(call thrift_template,.,$(smc_home)/if/ServiceManager.thrift,--cpp))
+  $(eval $(call thrift_template,.,$(smc_home)/if/ServiceManager.thrift,--gen cpp:pure_enums))
 endif
 
 BUILT_SOURCES = thriftstyle

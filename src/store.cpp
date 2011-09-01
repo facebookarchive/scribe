@@ -1474,12 +1474,48 @@ std::string BufferStore::getStatus() {
   return return_status;
 }
 
+SSLOptions::SSLOptions()
+  : useSsl(false) {
+}
+
+void SSLOptions::configure(StoreConf &configuration) {
+  std::string temp;
+  if (configuration.getString("use_ssl", temp) && temp.compare("yes") == 0) {
+    useSsl = true;
+    configuration.getString("ssl_trusted_file", sslTrustedFile);
+    configuration.getString("ssl_cert_file", sslCertFile);
+    configuration.getString("ssl_key_file", sslKeyFile);
+  }
+}
+
+shared_ptr<TSSLSocketFactory> SSLOptions::createFactory() const {
+  shared_ptr<TSSLSocketFactory> sslFactory(new TSSLSocketFactory);
+
+  if (!sslKeyFile.empty()) {
+    LOG_OPER("SSL: Using <%s> for cert and <%s> for the key", sslCertFile.c_str(), sslKeyFile.c_str());
+    sslFactory->loadCertificate(sslCertFile.c_str());
+    sslFactory->loadPrivateKey(sslKeyFile.c_str());
+  }
+
+  if (!sslTrustedFile.empty()) {
+    LOG_OPER("SSL: Using <%s> as the trusted list of certs", sslTrustedFile.c_str());
+    sslFactory->loadTrustedCertificates(sslTrustedFile.c_str());
+  }
+
+  if (hasBothCertAndTrustedList()) {
+    LOG_OPER("SSL: Requiring remote side have a valid cert too");
+    sslFactory->authenticate(true);
+  }
+  return sslFactory;
+}
+
 
 NetworkStore::NetworkStore(const string& category, bool multi_category)
   : Store(category, "network", multi_category),
     useConnPool(false),
     smcBased(false),
     remotePort(0),
+    sslOptions(new SSLOptions),
     serviceCacheTimeout(DEFAULT_NETWORKSTORE_CACHE_TIMEOUT),
     lastServiceCheck(0),
     opened(false) {
@@ -1519,6 +1555,8 @@ void NetworkStore::configure(pStoreConf configuration) {
       useConnPool = true;
     }
   }
+
+  sslOptions->configure(*configuration);
 }
 
 bool NetworkStore::open() {
@@ -1565,11 +1603,11 @@ bool NetworkStore::open() {
 
   } else {
     if (useConnPool) {
-      opened = g_connPool.open(remoteHost, remotePort, static_cast<int>(timeout));
+      opened = g_connPool.open(remoteHost, remotePort, static_cast<int>(timeout), sslOptions);
     } else {
       // only open unpooled connection if not already open
       if (unpooledConn == NULL) {
-        unpooledConn = shared_ptr<scribeConn>(new scribeConn(remoteHost, remotePort, static_cast<int>(timeout)));
+        unpooledConn = shared_ptr<scribeConn>(new scribeConn(remoteHost, remotePort, static_cast<int>(timeout), sslOptions));
         opened = unpooledConn->open();
       } else {
         opened = unpooledConn->isOpen();
@@ -1621,6 +1659,7 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
   store->remoteHost = remoteHost;
   store->remotePort = remotePort;
   store->smcService = smcService;
+  store->sslOptions = sslOptions;
 
   return copied;
 }

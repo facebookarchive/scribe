@@ -55,6 +55,8 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   // number of threads processing new Thrift connections
   size_t numThriftServerThreads;
 
+  boost::shared_ptr<SSLOptions> sslOptions;
+
  private:
   unsigned long checkPeriod; // periodic check interval for all contained stores
 

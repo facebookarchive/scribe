@@ -42,16 +42,20 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <signal.h>
 #include <boost/shared_ptr.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/convenience.hpp>
 
 #include "thrift/protocol/TBinaryProtocol.h"
 #include "thrift/server/TNonblockingServer.h"
+#include "thrift/server/TThreadedServer.h"
 #include "thrift/concurrency/ThreadManager.h"
 #include "thrift/concurrency/PosixThreadFactory.h"
 #include "thrift/concurrency/Mutex.h"
 #include "thrift/transport/TSocket.h"
+#include "thrift/transport/TSSLSocket.h"
+#include "thrift/transport/TSSLServerSocket.h"
 #include "thrift/transport/TSocketPool.h"
 #include "thrift/transport/TServerSocket.h"
 #include "thrift/transport/TTransportUtils.h"
