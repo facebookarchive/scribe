@@ -395,8 +395,11 @@ void FileStoreBase::periodicCheck() {
       case ROLL_NEVER:
         break;
     }
-	// Do periodic roll up only if you have some messages	
-	rotate = rotateIfData ? (currentSize > 0) : rotate;
+
+  	// Do periodic roll up only if you have some messages	
+    if(rotate) {
+  	  rotate = rotateIfData ? (currentSize > 0) : rotate;
+    }
   }
 
   if (rotate) {
