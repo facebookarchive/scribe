@@ -4,7 +4,7 @@
 #endef
 
 define thrift_template
-XTARGET := $(shell perl -e '@val = split("\/","$(2)"); $$last = pop(@val);split("\\.",$$last);print "$(1)/"."gen-cpp/"."@_[0]"."_types.cpp\n"' )
+XTARGET := $(shell perl -e '$$_ = $$ARGV[1]; s{^.*/}{}; s{\..*}{}; print "$$ARGV[0]/gen-cpp/$${_}_types.cpp\n"' '$(1)' '$(2)')
 
 ifneq ($$(XBUILT_SOURCES),) 
     XBUILT_SOURCES := $$(XBUILT_SOURCES) $$(XTARGET)
