@@ -476,7 +476,7 @@ string FileStoreBase::makeBaseFilename(struct tm* creation_time) {
 // returns the suffix of the newest file matching base_filename
 int FileStoreBase::findNewestFile(struct tm* creation_time) {
 
-  string base_filename = makeFilePath(creation_time);
+  string base_filename = makeBaseFilename(creation_time);
   string filePath = makeFilePath(creation_time);
   std::vector<std::string> files = FileInterface::list(filePath, fsType);
 
@@ -496,7 +496,7 @@ int FileStoreBase::findNewestFile(struct tm* creation_time) {
 
 int FileStoreBase::findOldestFile(struct tm* creation_time) {
 
-  string base_filename = makeFilePath(creation_time);
+  string base_filename = makeBaseFilename(creation_time);
   string filePath = makeFilePath(creation_time);
 
   std::vector<std::string> files = FileInterface::list(filePath, fsType);
