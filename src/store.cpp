@@ -677,6 +677,9 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
     if (writeFile) {
       if (writeMeta) {
         writeFile->write(meta_logfile_prefix + file);
+	if (addNewlines) {
+	  writeFile->write("\n");
+	}
       }
       writeFile->close();
     }
