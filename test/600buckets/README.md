@@ -1,4 +1,5 @@
 Oviewview
+===
 600-Bucket is for testing scribe configuration which has a large number
 of buffer stores. E.g. 600 buffer stores within a top level bucket store.
 In this kind of setup, if down stream receivers are unreachable, buffer
@@ -9,6 +10,7 @@ verify the changes and newly added options that are designed to deal
 with this situation.
 
 Network Topology
+===
 You need at least 3 servers: a sender, a mid tier, and a receiver.  Scribe
 servers will be running on all of them.  On the receiver, we will run
 two scribe servers to simulate bucketing to different hosts.
@@ -20,7 +22,9 @@ confgen.pl's configuration accordingly.  Run confgen.pl again to generate
 updated scribe.confs.
 
 Configuration generation
+===
 Before you run confgen.pl, you need to collect the following information:
+
 * midtierhost: host name /ip of the mid tier server
 * midtierport: port number of the mid tier server
 * receiverhost: hostname/ip of the receiver server
@@ -33,13 +37,14 @@ Before you run confgen.pl, you need to collect the following information:
 * category: scribe category
 * scribefilepath: root directory for scribe file store.  File basename
              will be the same as the category.
-Now that you have all those info, run
-perl confgen.pl -h
+
+Now that you have all those info, run `perl confgen.pl -h`
 to view the latest syntax.  Plug in the information listed above into
 the command line argument.  Run "perl confgen.pl" with arguments
 supplied, and you have generated all necessary configurations.
 
 The following files are generated:
+
 * scribe.sender.conf
 * scribe.midtier.conf
 * scribe.sinker.conf
@@ -57,6 +62,7 @@ Now, copy those conf file to sender, mid tier, and receiver box.
 them to a mounted directory.
 
 How to test:
+
 1. Start mid tier: scribed -p midtierport scribe.midtier.conf.
 2. Start sender: scribed -p senderport scribe.sender.conf.
 3. Use your favorite scribe client to generate scribe messages.
@@ -71,26 +77,30 @@ How to test:
    within each conf file template.
 4. Use ganglia to monitor mid tier and sender servers.  Observe
    the following:
-   4.1. sender output bandwidth
-   4.2. mid tier input bandwidth
-   4.3. mid tier memory usage
-   4.4. mid tier disk usage. (Avail disk should keep going down)
-   4.5. mid tier output bandwidth (it should be close to zero
-        as we haven't brought up receivers yet)
+   
+   4.1. sender output bandwidth  
+   4.2. mid tier input bandwidth  
+   4.3. mid tier memory usage  
+   4.4. mid tier disk usage. (Avail disk should keep going down)  
+   4.5. mid tier output bandwidth (it should be close to zero as we haven't brought up receivers yet)
+   
 5. Let it run for some extended period of time.  Watch available
    disk starts getting lower and lower overtime.
 6. On receiver servers, starts two scribe sinker servers:
-   6.1. perl -p 9998 scribe.conf, and
-   6.2. perl -p 9999 scribe.conf.
+
+   6.1. `perl -p 9998 scribe.conf`, and  
+   6.2. `perl -p 9999 scribe.conf`.
+   
 7. Monitor ganglia for sender, mid tier, and receiver hosts.
    Pay attention to network, memory utilitzation, and avail free
    disk.  With proper tuning, free available disk recovery should be
    as fast as when it was getting filled in step 4.
 
 Misc:
-1. iorw.sh: is a shell command that show disk i/o.  It mainly use iostat but
+
+1. `iorw.sh`: is a shell command that show disk i/o.  It mainly use iostat but
 with a little bit of formatting to only show interesting i/o stats.
-2. toggleSinker.sh: is a shell program that automates periodic shutting down
+2. `toggleSinker.sh`: is a shell program that automates periodic shutting down
    sinkers and then bring it up repeatly, every 10 min.
 
 More Information:
