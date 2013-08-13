@@ -10,8 +10,8 @@
 AC_PREREQ(2.52)
 AC_INIT([scribe], [1.5.0])
 AC_CONFIG_MACRO_DIR([aclocal])
-AM_INIT_AUTOMAKE([foreign -Wall])
-# To install locally
+# AM_INIT_AUTOMAKE([foreign -Wall])
+# To install locally (AM_INIT_AUTOMAKE or FB_INITIALIZE, not both)
 FB_INITIALIZE([localinstall])
 AC_PREFIX_DEFAULT([/usr/local])
 
