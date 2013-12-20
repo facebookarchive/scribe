@@ -28,6 +28,7 @@
 #include "common.h"
 #include "scribe_server.h"
 #include "network_dynamic_config.h"
+#include <boost/algorithm/string.hpp>
 
 using namespace std;
 using namespace boost;
@@ -1744,6 +1745,7 @@ NetworkStore::NetworkStore(StoreQueue* storeq,
   : Store(storeq, category, "network", multi_category),
     useConnPool(false),
     serviceBased(false),
+    listBased(false),
     remotePort(0),
     serviceCacheTimeout(DEFAULT_NETWORKSTORE_CACHE_TIMEOUT),
     ignoreNetworkError(false),
@@ -1771,7 +1773,11 @@ void NetworkStore::configure(pStoreConf configuration, pStoreConf parent) {
     // Constructor defaults are fine if these don't exist
     configuration->getString("service_options", serviceOptions);
     configuration->getUnsigned("service_cache_timeout", serviceCacheTimeout);
-  } else {
+  } else if (configuration->getString("service_list", serviceList)) {
+    // List of host[:port] in 'service_list'
+    listBased = true;
+    configuration->getUnsigned("list_default_port", serviceListDefaultPort);
+ } else {
     serviceBased = false;
     configuration->getString("remote_host", remoteHost);
     configuration->getUnsigned("remote_port", remotePort);
@@ -1841,6 +1847,25 @@ void NetworkStore::periodicCheck() {
   }
 }
 
+bool NetworkStore::loadFromList(const std::string &list, unsigned long defaultPort,
+                                server_vector_t& _return) {
+  vector<string> strs;
+  boost::split(strs, list, boost::is_any_of("\t "));
+  vector<string> split;
+  for (vector<string>::iterator iter = strs.begin();
+       iter != strs.end();
+       iter++) {
+    if (iter->find(":") != string::npos) {
+      // split the port
+      boost::split(split, (*iter), boost::is_any_of(":"));
+      _return.push_back(pair<string, int>(split[0], atoi(split[1].c_str())));
+    } else {
+      _return.push_back(pair<string, int>((*iter), defaultPort));
+    }
+  }
+  return true;
+}
+
 bool NetworkStore::open() {
   if (isOpen()) {
     /* re-opening an already open NetworkStore can be bad. For example,
@@ -1848,8 +1873,8 @@ bool NetworkStore::open() {
      */
     return (true);
   }
+  bool success = true;
   if (serviceBased) {
-    bool success = true;
     time_t now = time(NULL);
 
     // Only get list of servers if we haven't already gotten them recently
@@ -1859,7 +1884,12 @@ bool NetworkStore::open() {
       success = scribe::network_config::getService(serviceName, serviceOptions,
                                                    servers);
     }
+  } else if (listBased) {
+    // load 'servers' from the list
+    success = loadFromList(serviceList, serviceListDefaultPort, servers);
+  }
 
+  if (serviceBased || listBased) {
     // Cannot open if we couldn't find any servers
     if (!success || servers.empty()) {
       LOG_OPER("[%s] Failed to get servers from service", categoryHandled.c_str());
@@ -1921,7 +1951,7 @@ void NetworkStore::close() {
   }
   opened = false;
   if (useConnPool) {
-    if (serviceBased) {
+    if (serviceBased || listBased) {
       g_connPool.close(serviceName);
     } else {
       g_connPool.close(remoteHost, remotePort);
@@ -1944,6 +1974,7 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
 
   store->useConnPool = useConnPool;
   store->serviceBased = serviceBased;
+  store->listBased = listBased;
   store->timeout = timeout;
   store->remoteHost = remoteHost;
   store->remotePort = remotePort;
@@ -1971,7 +2002,7 @@ NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   boost::shared_ptr<logentry_vector_t> dummymessages(new logentry_vector_t);
 
   if (useConnPool) {
-    if (serviceBased) {
+    if (serviceBased || listBased) {
       if (!tryDummySend ||
           ((ret = g_connPool.send(serviceName, dummymessages)) == CONN_OK)) {
         ret = g_connPool.send(serviceName, messages);

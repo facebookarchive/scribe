@@ -387,14 +387,19 @@ class NetworkStore : public Store {
 
  protected:
   static const long int DEFAULT_SOCKET_TIMEOUT_MS = 5000; // 5 sec timeout
+  bool loadFromList(const std::string &list, unsigned long defaultPort,
+                    server_vector_t& _return);
 
   // configuration
   bool useConnPool;
   bool serviceBased;
+  bool listBased;
   long int timeout;
   std::string remoteHost;
   unsigned long remotePort; // long because it works with config code
   std::string serviceName;
+  std::string serviceList;
+  unsigned long serviceListDefaultPort;
   std::string serviceOptions;
   server_vector_t servers;
   unsigned long serviceCacheTimeout;
