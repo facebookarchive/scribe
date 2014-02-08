@@ -34,7 +34,7 @@ all:
 #
 THRIFT = $(thrift_home)/bin/thrift
 THRIFT_INCLUDES = -I $(fb303_home)/share/
-THRIFT_OPTS = $(THRIFT_INCLUDES) --gen cpp:pure_enums --gen py --gen php --gen java
+THRIFT_OPTS = $(THRIFT_INCLUDES) --gen cpp:pure_enums --gen py --gen php --gen java --gen erl
 
 # User defined conditionals and conditonal statements set up in configure.ac.
 # FACEBOOK set in configure.ac
@@ -96,7 +96,7 @@ libscribe_so_SOURCES = gen-cpp/scribe.cpp gen-cpp/scribe_types.cpp
 libdynamicbucketupdater_so_SOURCES = gen-cpp/BucketStoreMapping.cpp gen-cpp/bucketupdater_constants.cpp gen-cpp/bucketupdater_types.cpp 
 libscribe_so_CXXFLAGS = $(SHARED_CXXFLAGS)
 libdynamicbucketupdater_so_CXXFLAGS = $(SHARED_CXXFLAGS)
-libscribe_so_LDFLAGS = $(SHARED_LDFLAGS)
+libscribe_so_LDFLAGS = $(SHARED_LDFLAGS) -rpath $(thrift_home)/lib
 libdynamicbucketupdater_so_LDFLAGS = $(SHARED_LDFLAGS)
 INTERNAL_LIBS =  libscribe.so libdynamicbucketupdater.so
 endif
