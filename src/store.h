@@ -364,6 +364,40 @@ class BufferStore : public Store {
 };
 
 /*
+ * Hold configuration options for SSL-based connections/servers.
+ */
+class SSLOptions {
+ public:
+  SSLOptions();
+  /*
+   * Configures the SSLOptions based on the settings found in the StoreConf.
+   */
+  void configure(StoreConf&);
+  /*
+   * Returns true if SSL is enabled.
+   */
+  bool sslIsEnabled() const {
+      return useSsl;
+  }
+  /*
+   * Creates a new TSSLSocketFactory based on settings, optionally for the given host and port.
+   * It is not valid to call this if sslIsEnabled() returns false.
+   */
+  boost::shared_ptr<apache::thrift::transport::TSSLSocketFactory> createFactory() const;
+
+  /*
+   * Returns true if the configuration contains both a cert and a list of trusted certs - so we can
+   * force verification if wanted.
+   */
+  bool hasBothCertAndTrustedList() const {
+      return !sslTrustedFile.empty() && !sslKeyFile.empty();
+  }
+protected:
+  bool useSsl;
+  std::string sslTrustedFile, sslCertFile, sslKeyFile;
+};
+
+/*
  * This store sends messages to another scribe server.
  * This class is really just an adapter to the global
  * connection pool g_connPool.
@@ -402,6 +436,7 @@ class NetworkStore : public Store {
   unsigned long serviceListDefaultPort;
   std::string serviceOptions;
   server_vector_t servers;
+  boost::shared_ptr<SSLOptions> sslOptions;
   unsigned long serviceCacheTimeout;
   time_t lastServiceCheck;
   // if true do not update status to reflect failure to connect

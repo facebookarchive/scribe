@@ -115,26 +115,39 @@ void scribe::startServer() {
     thread_manager->start();
   }
 
-  shared_ptr<TNonblockingServer> server(new TNonblockingServer(
-                                          processor,
-                                          protocol_factory,
-                                          g_Handler->port,
-                                          thread_manager
-                                        ));
-  g_Handler->setServer(server);
+  boost::shared_ptr<TServer> server;
 
   LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
   fflush(stderr);
 
-  // throttle concurrent connections
-  unsigned long mconn = g_Handler->getMaxConn();
-  if (mconn > 0) {
-    LOG_OPER("Throttle max_conn to %lu", mconn);
-    server->setMaxConnections(mconn);
-    server->setOverloadAction(T_OVERLOAD_CLOSE_ON_ACCEPT);
+  if (g_Handler->sslOptions->sslIsEnabled()) {
+    boost::shared_ptr<TSSLSocketFactory> sslFactory(g_Handler->sslOptions->createFactory());
+    shared_ptr<TServerSocket> socket(new TSSLServerSocket(g_Handler->port, sslFactory));
+    shared_ptr<TTransportFactory> framedTransportFactory(new TFramedTransportFactory());
+    server.reset(
+      new TThreadedServer(processor, socket, framedTransportFactory, protocol_factory)
+    );
+  } else {
+    TNonblockingServer* pserver =
+      new TNonblockingServer(processor, protocol_factory, g_Handler->port, thread_manager);
+    server.reset(pserver);
+    // throttle concurrent connections
+    unsigned long mconn = g_Handler->getMaxConn();
+    if (mconn > 0) {
+      LOG_OPER("Throttle max_conn to %lu", mconn);
+      pserver->setMaxConnections(mconn);
+      pserver->setOverloadAction(T_OVERLOAD_CLOSE_ON_ACCEPT);
+    }
+
   }
 
+//  g_Handler->setServer(server);
+
+  LOG_OPER("Starting scribe server on port %lu using %s sockets",
+      g_Handler->port, g_Handler->sslOptions->sslIsEnabled() ? "SSL" : "TCP");
+  fflush(stderr);
   server->serve();
+ 
   // this function never returns
 }
 

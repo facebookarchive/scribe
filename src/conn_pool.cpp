@@ -54,9 +54,10 @@ string ConnPool::makeKey(const string& hostname, unsigned long port) {
   return key;
 }
 
-bool ConnPool::open(const string& hostname, unsigned long port, int timeout) {
+bool ConnPool::open(const string& hostname, unsigned long port, int timeout,
+                     shared_ptr<SSLOptions> sslOptions) {
         return openCommon(makeKey(hostname, port),
-                    shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout)));
+                    shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout, sslOptions)));
 }
 
 bool ConnPool::open(const string &service, const server_vector_t &servers, int timeout) {
@@ -158,13 +159,42 @@ int ConnPool::sendCommon(const string &key,
   }
 }
 
-scribeConn::scribeConn(const string& hostname, unsigned long port, int timeout_)
+/**
+ * This access manager doesn't care what host you are from, just
+ * that the cert is signed by a trusted authority.
+ * (Use this when you only have one trusted cert: the one you care
+ * to accept, but don't care what hostname/IP you use to access this
+ * trusted endpoint.)
+ */
+class HostAgnosticAccessManager : public AccessManager {
+ public:
+ virtual Decision verify(const sockaddr_storage& sa ) throw() {
+   return ALLOW;
+ }
+ virtual Decision verify(const std::string& host, const char* name, int size) throw() {
+   return ALLOW;
+ }
+ virtual Decision verify(const sockaddr_storage& sa, const char* data, int size) throw() {
+   return ALLOW;
+ }
+};
+
+
+scribeConn::scribeConn(const string& hostname,
+    unsigned long port, int timeout_, shared_ptr<SSLOptions> sslOptions)
   : refCount(1),
   serviceBased(false),
+  sslOptions(sslOptions),
   remoteHost(hostname),
   remotePort(port),
   timeout(timeout_) {
   pthread_mutex_init(&mutex, NULL);
+  if (sslOptions->sslIsEnabled()) {
+    sslSocketFactory = sslOptions->createFactory();
+    // We only accept a whitelist of certs, regardless of the host, so ignore the host:
+    boost::shared_ptr<AccessManager> am(new HostAgnosticAccessManager);
+    sslSocketFactory->access(am);
+  }
 }
 
 scribeConn::scribeConn(const string& service, const server_vector_t &servers, int timeout_)
@@ -211,9 +241,13 @@ bool scribeConn::isOpen() {
 bool scribeConn::open() {
   try {
 
-    socket = serviceBased ?
-      shared_ptr<TSocket>(new TSocketPool(serverList)) :
-      shared_ptr<TSocket>(new TSocket(remoteHost, remotePort));
+    if (sslOptions.use_count() && sslOptions->sslIsEnabled()) {
+      socket = sslSocketFactory->createSocket(remoteHost, remotePort);
+    } else {
+      socket = serviceBased ?
+        shared_ptr<TSocket>(new TSocketPool(serverList)) :
+        shared_ptr<TSocket>(new TSocket(remoteHost, remotePort));
+    }
 
     if (!socket) {
       throw std::runtime_error("Failed to create socket");

@@ -148,6 +148,42 @@ std::string Store::getStatus() {
   return return_status;
 }
 
+SSLOptions::SSLOptions()
+  : useSsl(false) {
+}
+
+void SSLOptions::configure(StoreConf &configuration) {
+  std::string temp;
+  if (configuration.getString("use_ssl", temp) && temp.compare("yes") == 0) {
+    useSsl = true;
+    configuration.getString("ssl_trusted_file", sslTrustedFile);
+    configuration.getString("ssl_cert_file", sslCertFile);
+    configuration.getString("ssl_key_file", sslKeyFile);
+  }
+}
+
+shared_ptr<TSSLSocketFactory> SSLOptions::createFactory() const {
+  shared_ptr<TSSLSocketFactory> sslFactory(new TSSLSocketFactory);
+
+  if (!sslKeyFile.empty()) {
+    LOG_OPER("SSL: Using <%s> for cert and <%s> for the key", sslCertFile.c_str(), sslKeyFile.c_str());
+    sslFactory->loadCertificate(sslCertFile.c_str());
+    sslFactory->loadPrivateKey(sslKeyFile.c_str());
+  }
+
+  if (!sslTrustedFile.empty()) {
+    LOG_OPER("SSL: Using <%s> as the trusted list of certs", sslTrustedFile.c_str());
+    sslFactory->loadTrustedCertificates(sslTrustedFile.c_str());
+  }
+
+  if (hasBothCertAndTrustedList()) {
+    LOG_OPER("SSL: Requiring remote side have a valid cert too");
+    sslFactory->authenticate(true);
+  }
+  return sslFactory;
+}
+
+ 
 bool Store::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages,
                        struct tm* now) {
   LOG_OPER("[%s] ERROR: attempting to read from a write-only store",
@@ -1747,6 +1783,7 @@ NetworkStore::NetworkStore(StoreQueue* storeq,
     serviceBased(false),
     listBased(false),
     remotePort(0),
+    sslOptions(new SSLOptions),
     serviceCacheTimeout(DEFAULT_NETWORKSTORE_CACHE_TIMEOUT),
     ignoreNetworkError(false),
     configmod(NULL),
@@ -1826,6 +1863,8 @@ void NetworkStore::configure(pStoreConf configuration, pStoreConf parent) {
                 categoryHandled.c_str(), dynamicType.c_str());
     }
   }
+
+  sslOptions->configure(*configuration);
 }
 
 void NetworkStore::periodicCheck() {
@@ -1898,14 +1937,14 @@ bool NetworkStore::open() {
     }
 
     if (useConnPool) {
-      opened = g_connPool.open(serviceName, servers, static_cast<int>(timeout));
+      opened = g_connPool.open(remoteHost, remotePort, static_cast<int>(timeout), sslOptions);
     } else {
       if (unpooledConn != NULL) {
         LOG_OPER("Logic error: NetworkStore::open unpooledConn is not NULL"
             " service = %s", serviceName.c_str());
       }
-      unpooledConn = shared_ptr<scribeConn>(new scribeConn(serviceName,
-            servers, static_cast<int>(timeout)));
+      unpooledConn = shared_ptr<scribeConn>(
+        new scribeConn(remoteHost, remotePort, static_cast<int>(timeout), sslOptions));
       opened = unpooledConn->open();
       if (!opened) {
         unpooledConn.reset();
@@ -1920,7 +1959,7 @@ bool NetworkStore::open() {
   } else {
     if (useConnPool) {
       opened = g_connPool.open(remoteHost, remotePort,
-          static_cast<int>(timeout));
+          static_cast<int>(timeout), sslOptions);
     } else {
       // only open unpooled connection if not already open
       if (unpooledConn != NULL) {
@@ -1928,7 +1967,7 @@ bool NetworkStore::open() {
             " %s:%lu", remoteHost.c_str(), remotePort);
       }
       unpooledConn = shared_ptr<scribeConn>(new scribeConn(remoteHost,
-          remotePort, static_cast<int>(timeout)));
+          remotePort, static_cast<int>(timeout), sslOptions));
       opened = unpooledConn->open();
       if (!opened) {
         unpooledConn.reset();
@@ -1978,6 +2017,7 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
   store->timeout = timeout;
   store->remoteHost = remoteHost;
   store->remotePort = remotePort;
+  store->sslOptions = sslOptions;
   store->serviceName = serviceName;
 
   return copied;

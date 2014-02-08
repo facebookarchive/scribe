@@ -64,6 +64,9 @@ AX_BOOST_BASE([1.36])
 AX_BOOST_SYSTEM
 AX_BOOST_FILESYSTEM
 
+BOOST_LIB=${ac_boost_path}/lib
+AC_SUBST(BOOST_LIB)
+
 # Generates Makefile from Makefile.am. Modify when new subdirs are added.
 # Change Makefile.am also to add subdirectly.
 AC_CONFIG_FILES(Makefile src/Makefile lib/py/Makefile)
