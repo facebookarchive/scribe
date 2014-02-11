@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
       { NULL,     0, NULL, 'o' },
     };
 
-    unsigned long int port = 0;  // this can also be specified in the conf file, which overrides the command line
+    std::string port;  // this can also be specified in the conf file, which overrides the command line
     std::string config_file;
     while (0 < (next_option = getopt_long(argc, argv, short_options, long_options, NULL))) {
       switch (next_option) {
@@ -97,7 +97,7 @@ int main(int argc, char **argv) {
         config_file = optarg;
         break;
       case 'p':
-        port = strtoul(optarg, NULL, 0);
+        port = optarg;
         break;
       }
     }
@@ -126,9 +126,22 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-scribeHandler::scribeHandler(unsigned long int server_port, const std::string& config_file)
+static int parse_port_int(const std::string& str) {
+  char* end;
+  int n = strtol(str.c_str(), &end, 10);
+  return errno || *end ? 0 : n;
+}
+
+static std::string parse_port_str(const std::string& str) {
+  char* end;
+  strtol(str.c_str(), &end, 10);
+  return errno || *end ? str : std::string();
+}
+
+scribeHandler::scribeHandler(const std::string& server_port, const std::string& config_file)
   : FacebookBase("Scribe"),
-    port(server_port),
+    port(parse_port_int(server_port)),
+    path(parse_port_str(server_port)),
     numThriftServerThreads(DEFAULT_SERVER_THREADS),
     sslOptions(new SSLOptions),
     checkPeriod(DEFAULT_CHECK_PERIOD),
@@ -293,7 +306,6 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   // Also note that we always check all categories, not just the ones in this request.
   // This is a simplification based on the assumption that most Log() calls contain most
   // categories.
-  unsigned long long max_count = 0;
   for (category_map_t::iterator cat_iter = categories.begin();
        cat_iter != categories.end();
        ++cat_iter) {
@@ -582,12 +594,18 @@ void scribeHandler::initialize() {
       newThreadPerCategory = true;
     }
 
+    config.getString("unix_socket", path);
+    if (!path.empty())
+      LOG_OPER("using unix domain socket: %s", path.c_str());
+
     unsigned long int old_port = port;
     config.getUnsigned("port", port);
-    if (old_port != 0 && port != old_port) {
+    if (!path.empty() && (old_port != 0 || port > 0)) {
+      LOG_OPER("Both inet and unix domain socket (uds) is specified. Using uds.");
+    } else if (old_port != 0 && port != old_port) {
       LOG_OPER("port %lu from conf file overriding old port %lu", port, old_port);
     }
-    if (port <= 0) {
+    if (port <= 0 && path.empty()) {
       throw runtime_error("No port number configured");
     }
 

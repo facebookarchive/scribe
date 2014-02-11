@@ -34,7 +34,9 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
                               public facebook::fb303::FacebookBase {
 
  public:
-  scribeHandler(unsigned long int port, const std::string& conf_file);
+  // The port argument can be an integer for INET socket or a path
+  // for UNIX domain socket
+  scribeHandler(const std::string& port, const std::string& conf_file);
   ~scribeHandler();
 
   void shutdown();
@@ -50,6 +52,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void setStatusDetails(const std::string& new_status_details);
 
   unsigned long int port; // it's long because that's all I implemented in the conf class
+  std::string path;       // UNIX domain socket
 
   // number of threads processing new Thrift connections
   size_t numThriftServerThreads;

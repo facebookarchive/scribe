@@ -117,8 +117,8 @@ void scribe::startServer() {
 
   boost::shared_ptr<TServer> server;
 
-  LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
-  fflush(stderr);
+  std::stringstream s;
+  s << "Starting scribe server on ";
 
   if (g_Handler->sslOptions->sslIsEnabled()) {
     boost::shared_ptr<TSSLSocketFactory> sslFactory(g_Handler->sslOptions->createFactory());
@@ -127,10 +127,21 @@ void scribe::startServer() {
     server.reset(
       new TThreadedServer(processor, socket, framedTransportFactory, protocol_factory)
     );
+    s << "port " << g_Handler->port << " using SSL sockets";
   } else {
-    TNonblockingServer* pserver =
-      new TNonblockingServer(processor, protocol_factory, g_Handler->port, thread_manager);
+    TNonblockingServer* pserver;
+    if (!g_Handler->path.empty()) {
+      pserver =
+        new TNonblockingServer(processor, protocol_factory, g_Handler->path, thread_manager);
+      s << "unix domain socket '" << g_Handler->path;
+    } else {
+      pserver =
+        new TNonblockingServer(processor, protocol_factory, g_Handler->port, thread_manager);
+      s << "port " << g_Handler->port << " using INET sockets";
+    }
+
     server.reset(pserver);
+
     // throttle concurrent connections
     unsigned long mconn = g_Handler->getMaxConn();
     if (mconn > 0) {
@@ -141,10 +152,8 @@ void scribe::startServer() {
 
   }
 
-//  g_Handler->setServer(server);
+  LOG_OPER("%s", s.str().c_str());
 
-  LOG_OPER("Starting scribe server on port %lu using %s sockets",
-      g_Handler->port, g_Handler->sslOptions->sslIsEnabled() ? "SSL" : "TCP");
   fflush(stderr);
   server->serve();
  
