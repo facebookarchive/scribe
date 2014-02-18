@@ -10,7 +10,7 @@
 AC_PREREQ(2.52)
 AC_INIT([scribe], [1.5.0])
 AC_CONFIG_MACRO_DIR([aclocal])
-AM_INIT_AUTOMAKE([foreign -Wall])
+#AM_INIT_AUTOMAKE([foreign -Wall])
 # To install locally
 FB_INITIALIZE([localinstall])
 AC_PREFIX_DEFAULT([/usr/local])
@@ -54,7 +54,9 @@ FB_ENABLE_FEATURE([USE_SCRIBE_HDFS], [hdfs])
 
 # Example: sets $(thrift_home) variable with default path set to /usr/local.
 FB_WITH_PATH([thrift_home], [thriftpath], [/usr/local])
+FB_WITH_PATH([thrift_libpath], [thriftlibpath], [${thrift_home}/lib])
 FB_WITH_PATH([fb303_home], [fb303path], [/usr/local])
+FB_WITH_PATH([fb303_libpath], [fb303libpath], [${fb303_home}/lib])
 FB_WITH_PATH([smc_home], [smcpath], [${EXTERNAL_PATH}/services/trunk/src])
 FB_WITH_PATH([fb_home], [fbpath], [${EXTERNAL_PATH}/libfacebook])
 FB_WITH_PATH([hadoop_home], [hadooppath], [/usr/local])
