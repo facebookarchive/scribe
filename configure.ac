@@ -33,6 +33,11 @@ AC_ARG_VAR([PY_PREFIX], [Prefix for installing Python modules.
                          Default = "/usr"])
 AS_IF([test "x$PY_PREFIX" = x], [PY_PREFIX="/usr"])
 
+AC_ARG_VAR([BOOST_LIB_DIR], [Custom location of the Boost libraries.
+                         (This is needed when Boost was configured with
+                          --exec-prefix option different from --prefix)
+                         Default = ""])
+
 ##########################################################################
 # User Configurable
 
