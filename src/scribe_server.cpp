@@ -46,7 +46,7 @@ static string overall_category = "scribe_overall";
 static string log_separator = ":";
 
 void print_usage(const char* program_name) {
-  cout << "Usage: " << program_name << " [-p port] [-c config_file]" << endl;
+  cout << "Usage: " << program_name << " [-p port] [-c config_file] [-d] daemonize" << endl;
 }
 
 void scribeHandler::incCounter(string category, string counter) {
@@ -76,15 +76,17 @@ int main(int argc, char **argv) {
     }
 
     int next_option;
-    const char* const short_options = "hp:c:";
+    const char* const short_options = "hdp:c:";
     const struct option long_options[] = {
       { "help",   0, NULL, 'h' },
+      { "daemon", 0, NULL, 'd' },
       { "port",   0, NULL, 'p' },
       { "config", 0, NULL, 'c' },
       { NULL,     0, NULL, 'o' },
     };
 
     unsigned long int port = 0;  // this can also be specified in the conf file, which overrides the command line
+    unsigned int daemonize = 0;
     std::string config_file;
     while (0 < (next_option = getopt_long(argc, argv, short_options, long_options, NULL))) {
       switch (next_option) {
@@ -92,6 +94,9 @@ int main(int argc, char **argv) {
       case 'h':
         print_usage(argv[0]);
         exit(0);
+      case 'd':
+        daemonize = 1;
+        break;
       case 'c':
         config_file = optarg;
         break;
@@ -104,6 +109,10 @@ int main(int argc, char **argv) {
     // assume a non-option arg is a config file name
     if (optind < argc && config_file.empty()) {
       config_file = argv[optind];
+    }
+
+    if (daemonize) {
+        daemon(1,0);
     }
 
     // seed random number generation with something reasonably unique
