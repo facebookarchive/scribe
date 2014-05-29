@@ -34,7 +34,7 @@ all:
 #
 THRIFT = $(thrift_home)/bin/thrift
 THRIFT_INCLUDES = -I $(fb303_home)/share/
-THRIFT_OPTS = $(THRIFT_INCLUDES) --gen cpp:pure_enums --gen py --gen php --gen java
+THRIFT_OPTS = $(THRIFT_INCLUDES) --gen cpp:pure_enums --gen py --gen php --gen java --gen erl
 
 # User defined conditionals and conditonal statements set up in configure.ac.
 # FACEBOOK set in configure.ac
@@ -52,7 +52,7 @@ endif
 
 
 # Set libraries external to this component.
-EXTERNAL_LIBS = -L$(thrift_home)/lib -L$(fb303_home)/lib -L$(hadoop_home)/lib -lfb303 -lthrift -lthriftnb
+EXTERNAL_LIBS = -L$(thrift_libpath) -L$(fb303_libpath) -L$(hadoop_home)/lib -lfb303 -lthrift -lthriftnb
 EXTERNAL_LIBS += -levent -lpthread
 if USE_SCRIBE_HDFS
   EXTERNAL_LIBS += -lhdfs -ljvm
@@ -72,7 +72,7 @@ AM_CPPFLAGS += -I$(hadoop_home)/include
 AM_CPPFLAGS += $(BOOST_CPPFLAGS)
 AM_CPPFLAGS += $(FB_CPPFLAGS) $(DEBUG_CPPFLAGS)
 
-AM_LDFLAGS = $(BOOST_LDFLAGS) $(BOOST_SYSTEM_LIB) $(BOOST_FILESYSTEM_LIB)
+AM_LDFLAGS = $(BOOST_LDFLAGS) $(BOOST_SYSTEM_LIB) $(BOOST_FILESYSTEM_LIB) -lthrift -Wl,-rpath,$(thrift_home)/lib
 
 # Section 3 #############################################################################
 # GENERATE BUILD RULES
@@ -96,7 +96,7 @@ libscribe_so_SOURCES = gen-cpp/scribe.cpp gen-cpp/scribe_types.cpp
 libdynamicbucketupdater_so_SOURCES = gen-cpp/BucketStoreMapping.cpp gen-cpp/bucketupdater_constants.cpp gen-cpp/bucketupdater_types.cpp 
 libscribe_so_CXXFLAGS = $(SHARED_CXXFLAGS)
 libdynamicbucketupdater_so_CXXFLAGS = $(SHARED_CXXFLAGS)
-libscribe_so_LDFLAGS = $(SHARED_LDFLAGS)
+libscribe_so_LDFLAGS = $(SHARED_LDFLAGS) -rpath $(thrift_home)/lib
 libdynamicbucketupdater_so_LDFLAGS = $(SHARED_LDFLAGS)
 INTERNAL_LIBS =  libscribe.so libdynamicbucketupdater.so
 endif
@@ -121,7 +121,7 @@ $(eval $(call thrift_template,.,$(srcdir)/../if/scribe.thrift,$(THRIFT_OPTS)))
 $(eval $(call thrift_template,.,$(srcdir)/../if/bucketupdater.thrift,$(THRIFT_OPTS)))
 
 if FACEBOOK
-  $(eval $(call thrift_template,.,$(smc_home)/if/ServiceManager.thrift,--gen cpp))
+  $(eval $(call thrift_template,.,$(smc_home)/if/ServiceManager.thrift,--gen cpp:pure_enums))
 endif
 
 BUILT_SOURCES = thriftstyle

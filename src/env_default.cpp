@@ -115,26 +115,48 @@ void scribe::startServer() {
     thread_manager->start();
   }
 
-  shared_ptr<TNonblockingServer> server(new TNonblockingServer(
-                                          processor,
-                                          protocol_factory,
-                                          g_Handler->port,
-                                          thread_manager
-                                        ));
-  g_Handler->setServer(server);
+  boost::shared_ptr<TServer> server;
 
-  LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
-  fflush(stderr);
+  std::stringstream s;
+  s << "Starting scribe server on ";
 
-  // throttle concurrent connections
-  unsigned long mconn = g_Handler->getMaxConn();
-  if (mconn > 0) {
-    LOG_OPER("Throttle max_conn to %lu", mconn);
-    server->setMaxConnections(mconn);
-    server->setOverloadAction(T_OVERLOAD_CLOSE_ON_ACCEPT);
+  if (g_Handler->sslOptions->sslIsEnabled()) {
+    boost::shared_ptr<TSSLSocketFactory> sslFactory(g_Handler->sslOptions->createFactory());
+    shared_ptr<TServerSocket> socket(new TSSLServerSocket(g_Handler->port, sslFactory));
+    shared_ptr<TTransportFactory> framedTransportFactory(new TFramedTransportFactory());
+    server.reset(
+      new TThreadedServer(processor, socket, framedTransportFactory, protocol_factory)
+    );
+    s << "port " << g_Handler->port << " using SSL sockets";
+  } else {
+    TNonblockingServer* pserver;
+    if (!g_Handler->path.empty()) {
+      pserver =
+        new TNonblockingServer(processor, protocol_factory, g_Handler->path, thread_manager);
+      s << "unix domain socket '" << g_Handler->path;
+    } else {
+      pserver =
+        new TNonblockingServer(processor, protocol_factory, g_Handler->port, thread_manager);
+      s << "port " << g_Handler->port << " using INET sockets";
+    }
+
+    server.reset(pserver);
+
+    // throttle concurrent connections
+    unsigned long mconn = g_Handler->getMaxConn();
+    if (mconn > 0) {
+      LOG_OPER("Throttle max_conn to %lu", mconn);
+      pserver->setMaxConnections(mconn);
+      pserver->setOverloadAction(T_OVERLOAD_CLOSE_ON_ACCEPT);
+    }
+
   }
 
+  LOG_OPER("%s", s.str().c_str());
+
+  fflush(stderr);
   server->serve();
+ 
   // this function never returns
 }
 

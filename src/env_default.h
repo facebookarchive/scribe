@@ -22,10 +22,13 @@
 
 #include "thrift/protocol/TBinaryProtocol.h"
 #include "thrift/server/TNonblockingServer.h"
+#include "thrift/server/TThreadedServer.h"
 #include "thrift/concurrency/ThreadManager.h"
 #include "thrift/concurrency/PosixThreadFactory.h"
 #include "thrift/concurrency/Mutex.h"
 #include "thrift/transport/TSocket.h"
+#include "thrift/transport/TSSLSocket.h"
+#include "thrift/transport/TSSLServerSocket.h"
 #include "thrift/transport/TSocketPool.h"
 #include "thrift/transport/TServerSocket.h"
 #include "thrift/transport/TTransportUtils.h"

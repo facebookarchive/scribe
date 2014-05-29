@@ -20,6 +20,7 @@
 '''scribe_ctrl: A simple script for running and monitoring scribe.'''
 
 import sys
+import os
 
 #make this work for facebook environment too
 isFacebook = 0
@@ -36,19 +37,24 @@ from thrift import protocol, transport
 from thrift.transport import TTransport
 from thrift.protocol import TBinaryProtocol
 
-if (len(sys.argv) > 2):
-    port = int(sys.argv[2])
-else:
-    port = 1463
+unix_socket = None
+
+
+port = sys.argv[2] if len(sys.argv) > 2 else "1463"
+
+if os.path.isabs(port):
+    unix_socket = port
+    port = "0"
 
 if (len(sys.argv) > 1):
     retval = fb303_simple_mgmt.service_ctrl(sys.argv[1],
-                                            port,
+                                            int(port),
                                             trans_factory = TTransport.TFramedTransportFactory(),
-                                            prot_factory = TBinaryProtocol.TBinaryProtocolFactory())
+                                            prot_factory = TBinaryProtocol.TBinaryProtocolFactory(),
+                                            unix_socket = unix_socket)
     sys.exit(retval)
 
 else:
-    print 'Usage: scribe_ctrl command [port]'
+    print 'Usage: scribe_ctrl command [port|unix_socket]'
     print '  commands: stop counters status version name alive'
     sys.exit(2)
