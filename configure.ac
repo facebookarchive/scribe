@@ -63,6 +63,7 @@ FB_WITH_PATH([hadoop_home], [hadooppath], [/usr/local])
 AX_BOOST_BASE([1.36])
 AX_BOOST_SYSTEM
 AX_BOOST_FILESYSTEM
+AX_BOOST_REGEX
 
 # Generates Makefile from Makefile.am. Modify when new subdirs are added.
 # Change Makefile.am also to add subdirectly.

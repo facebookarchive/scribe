@@ -1,4 +1,4 @@
-#include <strstream>
+#include <sstream>
 #include <iostream>
 #include "dynamic_bucket_updater.h"
 #include "scribe_server.h"

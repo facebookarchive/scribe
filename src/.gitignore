@@ -4,3 +4,6 @@ gen-php
 gen-py
 gen-java
 scribed
+libdynamicbucketupdater.a
+libscribe.a
+Makefile.in
