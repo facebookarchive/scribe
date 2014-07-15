@@ -49,8 +49,8 @@ bool scribe::network_config::getService(const std::string& serviceName,
  * Concurrency mechanisms
  */
 
-shared_ptr<ReadWriteMutex> scribe::concurrency::createReadWriteMutex() {
-  return shared_ptr<ReadWriteMutex>(new ReadWriteMutex());
+boost::shared_ptr<ReadWriteMutex> scribe::concurrency::createReadWriteMutex() {
+  return boost::shared_ptr<ReadWriteMutex>(new ReadWriteMutex());
 }
 
 /*
@@ -110,12 +110,12 @@ void scribe::startServer() {
       g_Handler->numThriftServerThreads
     );
 
-    shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
+    boost::shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
     thread_manager->threadFactory(thread_factory);
     thread_manager->start();
   }
 
-  shared_ptr<TNonblockingServer> server(new TNonblockingServer(
+  boost::shared_ptr<TNonblockingServer> server(new TNonblockingServer(
                                           processor,
                                           protocol_factory,
                                           g_Handler->port,

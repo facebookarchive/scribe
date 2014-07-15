@@ -27,7 +27,7 @@
 using namespace boost;
 using namespace std;
 
-extern shared_ptr<scribeHandler> g_Handler;
+extern boost::shared_ptr<scribeHandler> g_Handler;
 
 StoreConf::StoreConf() {
 }
