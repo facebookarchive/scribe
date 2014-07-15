@@ -56,12 +56,12 @@ string ConnPool::makeKey(const string& hostname, unsigned long port) {
 
 bool ConnPool::open(const string& hostname, unsigned long port, int timeout) {
         return openCommon(makeKey(hostname, port),
-                    shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout)));
+                    boost::shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout)));
 }
 
 bool ConnPool::open(const string &service, const server_vector_t &servers, int timeout) {
         return openCommon(service,
-                    shared_ptr<scribeConn>(new scribeConn(service, servers, timeout)));
+                    boost::shared_ptr<scribeConn>(new scribeConn(service, servers, timeout)));
 }
 
 void ConnPool::close(const string& hostname, unsigned long port) {
@@ -73,16 +73,16 @@ void ConnPool::close(const string &service) {
 }
 
 int ConnPool::send(const string& hostname, unsigned long port,
-                    shared_ptr<logentry_vector_t> messages) {
+                    boost::shared_ptr<logentry_vector_t> messages) {
   return sendCommon(makeKey(hostname, port), messages);
 }
 
 int ConnPool::send(const string &service,
-                    shared_ptr<logentry_vector_t> messages) {
+                    boost::shared_ptr<logentry_vector_t> messages) {
   return sendCommon(service, messages);
 }
 
-bool ConnPool::openCommon(const string &key, shared_ptr<scribeConn> conn) {
+bool ConnPool::openCommon(const string &key, boost::shared_ptr<scribeConn> conn) {
 
 #define RETURN(x) {pthread_mutex_unlock(&mapMutex); return(x);}
 
@@ -96,7 +96,7 @@ bool ConnPool::openCommon(const string &key, shared_ptr<scribeConn> conn) {
   pthread_mutex_lock(&mapMutex);
   conn_map_t::iterator iter = connMap.find(key);
   if (iter != connMap.end()) {
-    shared_ptr<scribeConn> old_conn = (*iter).second;
+    boost::shared_ptr<scribeConn> old_conn = (*iter).second;
     if (old_conn->isOpen()) {
       old_conn->addRef();
       RETURN(true);
@@ -105,7 +105,7 @@ bool ConnPool::openCommon(const string &key, shared_ptr<scribeConn> conn) {
       LOG_OPER("CONN_POOL: switching to a new connection <%s>", key.c_str());
       conn->setRef(old_conn->getRef());
       conn->addRef();
-      // old connection will be magically deleted by shared_ptr
+      // old connection will be magically deleted by boost::shared_ptr
       connMap[key] = conn;
       RETURN(true);
     }
@@ -142,7 +142,7 @@ void ConnPool::closeCommon(const string &key) {
 }
 
 int ConnPool::sendCommon(const string &key,
-                          shared_ptr<logentry_vector_t> messages) {
+                          boost::shared_ptr<logentry_vector_t> messages) {
   pthread_mutex_lock(&mapMutex);
   conn_map_t::iterator iter = connMap.find(key);
   if (iter != connMap.end()) {
@@ -212,8 +212,8 @@ bool scribeConn::open() {
   try {
 
     socket = serviceBased ?
-      shared_ptr<TSocket>(new TSocketPool(serverList)) :
-      shared_ptr<TSocket>(new TSocket(remoteHost, remotePort));
+      boost::shared_ptr<TSocket>(new TSocketPool(serverList)) :
+      boost::shared_ptr<TSocket>(new TSocket(remoteHost, remotePort));
 
     if (!socket) {
       throw std::runtime_error("Failed to create socket");
@@ -234,16 +234,16 @@ bool scribeConn::open() {
      */
     socket->setLinger(0, 0);
 
-    framedTransport = shared_ptr<TFramedTransport>(new TFramedTransport(socket));
+    framedTransport = boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
     if (!framedTransport) {
       throw std::runtime_error("Failed to create framed transport");
     }
-    protocol = shared_ptr<TBinaryProtocol>(new TBinaryProtocol(framedTransport));
+    protocol = boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(framedTransport));
     if (!protocol) {
       throw std::runtime_error("Failed to create protocol");
     }
     protocol->setStrict(false, false);
-    resendClient = shared_ptr<scribeClient>(new scribeClient(protocol));
+    resendClient = boost::shared_ptr<scribeClient>(new scribeClient(protocol));
     if (!resendClient) {
       throw std::runtime_error("Failed to create network client");
     }

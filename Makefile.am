@@ -1,4 +1,5 @@
 ACLOCAL_AMFLAGS = -I aclocal
+AM_CXXFLAGS = -std=gnu++11
 
 @GLOBAL_HEADER_MK@
 
