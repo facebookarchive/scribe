@@ -1979,6 +1979,8 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
   store->remoteHost = remoteHost;
   store->remotePort = remotePort;
   store->serviceName = serviceName;
+  store->serviceList = serviceList;
+  store->serviceListDefaultPort = serviceListDefaultPort;
 
   return copied;
 }
