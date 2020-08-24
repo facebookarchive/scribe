@@ -341,7 +341,7 @@ bool DynamicBucketUpdater::updateInternal(
     catMap_.erase(catIter);
   }
 
-  shared_ptr<TSocket> socket = shared_ptr<TSocket>(
+  boost::shared_ptr<TSocket> socket = boost::shared_ptr<TSocket>(
                                 new TSocket(remoteHost, remotePort));
 
   if (!socket) {

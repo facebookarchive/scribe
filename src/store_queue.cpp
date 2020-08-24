@@ -175,7 +175,7 @@ void StoreQueue::open() {
   }
 }
 
-shared_ptr<Store> StoreQueue::copyStore(const std::string &category) {
+boost::shared_ptr<Store> StoreQueue::copyStore(const std::string &category) {
   return store->copy(category);
 }
 

@@ -34,7 +34,7 @@ using namespace std;
 
 using boost::shared_ptr;
 
-shared_ptr<scribeHandler> g_Handler;
+boost::shared_ptr<scribeHandler> g_Handler;
 
 #define DEFAULT_CHECK_PERIOD       5
 #define DEFAULT_MAX_MSG_PER_SECOND 0
@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
     // seed random number generation with something reasonably unique
     srand(time(NULL) ^ getpid());
 
-    g_Handler = shared_ptr<scribeHandler>(new scribeHandler(port, config_file));
+    g_Handler = boost::shared_ptr<scribeHandler>(new scribeHandler(port, config_file));
     g_Handler->initialize();
 
     scribe::startServer(); // never returns
@@ -242,10 +242,10 @@ bool scribeHandler::createCategoryFromModel(
     return false;
   }
 
-  shared_ptr<StoreQueue> pstore;
+  boost::shared_ptr<StoreQueue> pstore;
   if (newThreadPerCategory) {
     // Create a new thread/StoreQueue for this category
-    pstore = shared_ptr<StoreQueue>(new StoreQueue(model, category));
+    pstore = boost::shared_ptr<StoreQueue>(new StoreQueue(model, category));
     LOG_OPER("[%s] Creating new category store from model %s",
              category.c_str(), model->getCategoryHandled().c_str());
 
@@ -258,10 +258,10 @@ bool scribeHandler::createCategoryFromModel(
              category.c_str(), model->getCategoryHandled().c_str());
   }
 
-  shared_ptr<store_list_t> pstores;
+  boost::shared_ptr<store_list_t> pstores;
   category_map_t::iterator cat_iter = categories.find(category);
   if (cat_iter == categories.end()) {
-    pstores = shared_ptr<store_list_t>(new store_list_t);
+    pstores = boost::shared_ptr<store_list_t>(new store_list_t);
     categories[category] = pstores;
   } else {
     pstores = cat_iter->second;
@@ -292,7 +292,7 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   for (category_map_t::iterator cat_iter = categories.begin();
        cat_iter != categories.end();
        ++cat_iter) {
-    shared_ptr<store_list_t> pstores = cat_iter->second;
+    boost::shared_ptr<store_list_t> pstores = cat_iter->second;
     if (!pstores) {
       throw std::logic_error("throttle check: iterator in category map holds null pointer");
     }
@@ -315,10 +315,10 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
 }
 
 // Should be called while holding a writeLock on scribeHandlerLock
-shared_ptr<store_list_t> scribeHandler::createNewCategory(
+boost::shared_ptr<store_list_t> scribeHandler::createNewCategory(
   const string& category) {
 
-  shared_ptr<store_list_t> store_list;
+  boost::shared_ptr<store_list_t> store_list;
 
   // First, check the list of category prefixes for a model
   category_map_t::iterator cat_prefix_iter = category_prefixes.begin();
@@ -327,7 +327,7 @@ shared_ptr<store_list_t> scribeHandler::createNewCategory(
     if (cat_prefix_iter->first.compare(0, len-1, category, 0, len-1) == 0) {
       // Found a matching prefix model
 
-      shared_ptr<store_list_t> pstores = cat_prefix_iter->second;
+      boost::shared_ptr<store_list_t> pstores = cat_prefix_iter->second;
       for (store_list_t::iterator store_iter = pstores->begin();
           store_iter != pstores->end(); ++store_iter) {
         createCategoryFromModel(category, *store_iter);
@@ -368,7 +368,7 @@ shared_ptr<store_list_t> scribeHandler::createNewCategory(
 // Add this message to every store in list
 void scribeHandler::addMessage(
   const LogEntry& entry,
-  const shared_ptr<store_list_t>& store_list) {
+  const boost::shared_ptr<store_list_t>& store_list) {
 
   int numstores = 0;
 
@@ -416,7 +416,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
       continue;
     }
 
-    shared_ptr<store_list_t> store_list;
+    boost::shared_ptr<store_list_t> store_list;
     string category = (*msg_iter).category;
 
     category_map_t::iterator cat_iter;
@@ -496,7 +496,7 @@ bool scribeHandler::throttleDeny(int num_messages) {
 
 void scribeHandler::stopStores() {
   setStatus(STOPPING);
-  shared_ptr<store_list_t> store_list;
+  boost::shared_ptr<store_list_t> store_list;
   for (store_list_t::iterator store_iter = defaultStores.begin();
       store_iter != defaultStores.end(); ++store_iter) {
     if (!(*store_iter)->isModelStore()) {
@@ -652,9 +652,9 @@ void scribeHandler::initialize() {
 // Configures the store specified by the store configuration. Returns false if failed.
 bool scribeHandler::configureStore(pStoreConf store_conf, int *numstores) {
   string category;
-  shared_ptr<StoreQueue> pstore;
+  boost::shared_ptr<StoreQueue> pstore;
   vector<string> category_list;
-  shared_ptr<StoreQueue> model;
+  boost::shared_ptr<StoreQueue> model;
   bool single_category = true;
 
 
@@ -685,7 +685,7 @@ bool scribeHandler::configureStore(pStoreConf store_conf, int *numstores) {
   }
   else if (single_category) {
     // configure single store
-    shared_ptr<StoreQueue> result =
+    boost::shared_ptr<StoreQueue> result =
       configureStoreCategory(store_conf, category_list[0], model);
 
     if (result == NULL) {
@@ -718,7 +718,7 @@ bool scribeHandler::configureStore(pStoreConf store_conf, int *numstores) {
     // create a store for each category
     vector<string>::iterator iter;
     for (iter = category_list.begin(); iter < category_list.end(); iter++) {
-       shared_ptr<StoreQueue> result =
+       boost::shared_ptr<StoreQueue> result =
          configureStoreCategory(store_conf, *iter, model);
 
       if (!result) {
@@ -734,7 +734,7 @@ bool scribeHandler::configureStore(pStoreConf store_conf, int *numstores) {
 
 
 // Configures the store specified by the store configuration and category.
-shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
+boost::shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
   pStoreConf store_conf,                       //configuration for store
   const string &category,                      //category name
   const boost::shared_ptr<StoreQueue> &model,  //model to use (optional)
@@ -745,7 +745,7 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
 
   if (category.empty()) {
     setStatusDetails("Bad config - store with blank category");
-    return shared_ptr<StoreQueue>();
+    return boost::shared_ptr<StoreQueue>();
   }
 
   LOG_OPER("CATEGORY : %s", category.c_str());
@@ -763,17 +763,17 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
     string errormsg("Bad config - no type for store with category: ");
     errormsg += category;
     setStatusDetails(errormsg);
-    return shared_ptr<StoreQueue>();
+    return boost::shared_ptr<StoreQueue>();
   }
 
   // look for the store in the current list
-  shared_ptr<StoreQueue> pstore;
+  boost::shared_ptr<StoreQueue> pstore;
 
   try {
     if (model != NULL) {
       // Create a copy of the model if we want a new thread per category
       if (newThreadPerCategory && !is_default && !is_prefix_category) {
-        pstore = shared_ptr<StoreQueue>(new StoreQueue(model, category));
+        pstore = boost::shared_ptr<StoreQueue>(new StoreQueue(model, category));
       } else {
         pstore = model;
         already_created = true;
@@ -798,7 +798,7 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
       is_model = newThreadPerCategory && categories;
 
       pstore =
-        shared_ptr<StoreQueue>(new StoreQueue(type, store_name, checkPeriod,
+        boost::shared_ptr<StoreQueue>(new StoreQueue(type, store_name, checkPeriod,
                                               is_model, multi_category));
     }
   } catch (...) {
@@ -809,7 +809,7 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
     string errormsg("Bad config - can't create a store of type: ");
     errormsg += type;
     setStatusDetails(errormsg);
-    return shared_ptr<StoreQueue>();
+    return boost::shared_ptr<StoreQueue>();
   }
 
   // open store. and configure it if not copied from a model
@@ -826,23 +826,23 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
     LOG_OPER("Creating default store");
     defaultStores.push_back(pstore);
   } else if (is_prefix_category) {
-    shared_ptr<store_list_t> pstores;
+    boost::shared_ptr<store_list_t> pstores;
     category_map_t::iterator category_iter = category_prefixes.find(category);
     if (category_iter != category_prefixes.end()) {
       pstores = category_iter->second;
     } else {
-      pstores = shared_ptr<store_list_t>(new store_list_t);
+      pstores = boost::shared_ptr<store_list_t>(new store_list_t);
       category_prefixes[category] = pstores;
     }
     pstores->push_back(pstore);
   } else if (!pstore->isModelStore()) {
     // push the new store onto the new map if it's not just a model
-    shared_ptr<store_list_t> pstores;
+    boost::shared_ptr<store_list_t> pstores;
     category_map_t::iterator category_iter = categories.find(category);
     if (category_iter != categories.end()) {
       pstores = category_iter->second;
     } else {
-      pstores = shared_ptr<store_list_t>(new store_list_t);
+      pstores = boost::shared_ptr<store_list_t>(new store_list_t);
       categories[category] = pstores;
     }
     pstores->push_back(pstore);
@@ -857,7 +857,7 @@ void scribeHandler::deleteCategoryMap(category_map_t& cats) {
   for (category_map_t::iterator cat_iter = cats.begin();
        cat_iter != cats.end();
        ++cat_iter) {
-    shared_ptr<store_list_t> pstores = cat_iter->second;
+    boost::shared_ptr<store_list_t> pstores = cat_iter->second;
     if (!pstores) {
       throw std::logic_error("deleteCategoryMap: "
           "iterator in category map holds null pointer");
