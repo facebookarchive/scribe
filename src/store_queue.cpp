@@ -306,7 +306,7 @@ void StoreQueue::threadMember() {
   store->close();
 }
 
-void StoreQueue::processFailedMessages(shared_ptr<logentry_vector_t> messages) {
+void StoreQueue::processFailedMessages(boost::shared_ptr<logentry_vector_t> messages) {
   // If the store was not able to process these messages, we will either
   // requeue them or give up depending on the value of mustSucceed
 
