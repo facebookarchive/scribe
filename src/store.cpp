@@ -2387,7 +2387,7 @@ void BucketStore::periodicCheck() {
   for (uint32_t i = 0; i < sz; ++i) {
     uint32_t idx = storeIndex[i];
     buckets[idx]->periodicCheck();
-  
+  }
 }
 
 boost::shared_ptr<Store> BucketStore::copy(const std::string &category) {

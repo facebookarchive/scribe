@@ -11,7 +11,7 @@ using namespace facebook;
 using namespace facebook::fb303;
 using namespace scribe::thrift;
 using boost::shared_ptr;
-extern shared_ptr<scribeHandler> g_Handler;
+extern boost::shared_ptr<scribeHandler> g_Handler;
 
 DynamicBucketUpdater* DynamicBucketUpdater::instance_ = NULL;
 Mutex DynamicBucketUpdater::instanceLock_;
@@ -362,10 +362,10 @@ bool DynamicBucketUpdater::updateInternal(
   socket->setRecvTimeout(recvTimeout);
   socket->setSendTimeout(sendTimeout);
 
-  shared_ptr<TFramedTransport> framedTransport = shared_ptr<TFramedTransport>(
+  boost::shared_ptr<TFramedTransport> framedTransport = boost::shared_ptr<TFramedTransport>(
                 new TFramedTransport(socket));
   framedTransport->open();
-  shared_ptr<TBinaryProtocol> protocol = shared_ptr<TBinaryProtocol>(
+  boost::shared_ptr<TBinaryProtocol> protocol = boost::shared_ptr<TBinaryProtocol>(
                                       new TBinaryProtocol(framedTransport));
 
   // no strict version checking
